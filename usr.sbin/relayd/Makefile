@@ -7,12 +7,19 @@ SRCS+=		agentx.c ca.c carp.c check_icmp.c check_script.c \
 		pfe.c pfe_filter.c pfe_route.c proc.c \
 		relay.c relay_http.c relay_udp.c relayd.c \
 		shuffle.c snmp.c ssl.c ssl_privsep.c
+# BEGIN FreeBSD-relayd
+# Currently, relayd does not support SNMP traps on FreeBSD.
+SRCS:=		${SRCS:Nagentx.c}
+# END FreeBSD-relayd
 MAN=		relayd.8 relayd.conf.5
 
 LDADD=		-levent -lssl -lcrypto -lutil
 DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
 # BEGIN FreeBSD-relayd
+# Currently, relayd does not support SNMP traps on FreeBSD.
+CFLAGS:=	${CFLAGS:N-I${.CURDIR}/../snmpd}
+
 CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
