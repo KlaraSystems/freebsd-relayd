@@ -1,4 +1,4 @@
-/*	$OpenBSD: relay_http.c,v 1.33 2014/08/10 21:55:17 bluhm Exp $	*/
+/*	$OpenBSD: relay_http.c,v 1.32 2014/07/17 11:35:26 stsp Exp $	*/
 
 /*
  * Copyright (c) 2006 - 2014 Reyk Floeter <reyk@openbsd.org>
@@ -427,10 +427,9 @@ relay_read_http(struct bufferevent *bev, void *arg)
 				relay_bindanyreq(con, 0, IPPROTO_TCP);
 				return;
 			}
-			if (relay_connect(con) == -1) {
+			if (relay_connect(con) == -1)
 				relay_abort_http(con, 502, "session failed", 0);
-				return;
-			}
+			return;
 		}
 	}
 	if (con->se_done) {
@@ -440,8 +439,10 @@ relay_read_http(struct bufferevent *bev, void *arg)
 	if (EVBUFFER_LENGTH(src) && bev->readcb != relay_read_http)
 		bev->readcb(bev, arg);
 	bufferevent_enable(bev, EV_READ);
+#ifndef __FreeBSD__
 	if (relay_splice(cre) == -1)
 		relay_close(con, strerror(errno));
+#endif
 	return;
  fail:
 	relay_abort_http(con, 500, strerror(errno), 0);
@@ -466,8 +467,10 @@ relay_read_httpcontent(struct bufferevent *bev, void *arg)
 	    con->se_id, size, cre->toread);
 	if (!size)
 		return;
+#ifndef __FreeBSD__
 	if (relay_spliceadjust(cre) == -1)
 		goto fail;
+#endif
 
 	if (cre->toread > 0) {
 		/* Read content data */
@@ -520,8 +523,10 @@ relay_read_httpchunks(struct bufferevent *bev, void *arg)
 	    con->se_id, size, cre->toread);
 	if (!size)
 		return;
+#ifndef __FreeBSD__
 	if (relay_spliceadjust(cre) == -1)
 		goto fail;
+#endif
 
 	if (cre->toread > 0) {
 		/* Read chunk data */
@@ -658,8 +663,13 @@ _relay_lookup_url(struct ctl_relay_event *cre, char *host, char *path,
 	switch (kv->kv_digest) {
 	case DIGEST_SHA1:
 	case DIGEST_MD5:
+#ifdef __FreeBSD__
+		if ((md = digeststr(kv->kv_digest,
+		    (u_int8_t*)val, strlen(val), NULL)) == NULL) {
+#else
 		if ((md = digeststr(kv->kv_digest,
 		    val, strlen(val), NULL)) == NULL) {
+#endif
 			relay_abort_http(con, 500,
 			    "failed to allocate digest", 0);
 			goto fail;
@@ -1033,7 +1043,11 @@ relay_expand_http(struct ctl_relay_event *cre, char *val, char *buf,
 			return (NULL);
 	}
 
+#ifndef __FreeBSD__
 	return (buf);
+#else
+	return (char *)(buf);
+#endif
 }
 
 int

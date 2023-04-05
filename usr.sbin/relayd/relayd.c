@@ -17,7 +17,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <openssl/rand.h>
+#else
 #include <sys/types.h>
+#endif
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -40,7 +45,11 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <pwd.h>
+#ifdef __FreeBSD__
+#include <sha.h>
+#else
 #include <sha1.h>
+#endif
 #include <md5.h>
 
 #include <openssl/ssl.h>
@@ -156,6 +165,11 @@ main(int argc, char *argv[])
 	struct relayd		*env;
 	struct privsep		*ps;
 	const char		*conffile = CONF_FILE;
+#ifdef __FreeBSD__
+#if __FreeBSD_version > 800040
+	u_int32_t               rnd[256];
+#endif
+#endif
 
 	while ((c = getopt(argc, argv, "dD:nf:v")) != -1) {
 		switch (c) {
@@ -226,6 +240,15 @@ main(int argc, char *argv[])
 	else
 		log_info("startup");
 
+#ifdef __FreeBSD__
+#if __FreeBSD_version > 1000002
+	arc4random_buf(rnd, sizeof(rnd));
+	RAND_seed(rnd, sizeof(rnd));
+#else
+	RAND_load_file("/dev/random",2048);
+#endif
+#endif
+
 	ps->ps_instances[PROC_RELAY] = env->sc_prefork_relay;
 	ps->ps_instances[PROC_CA] = env->sc_prefork_relay;
 	ps->ps_ninstances = env->sc_prefork_relay;
@@ -267,7 +290,9 @@ main(int argc, char *argv[])
 	if (parent_configure(env) == -1)
 		fatalx("configuration failed");
 
+#ifndef __FreeBSD__
 	init_routes(env);
+#endif
 
 	event_dispatch();
 
@@ -282,7 +307,9 @@ parent_configure(struct relayd *env)
 {
 	struct table		*tb;
 	struct rdr		*rdr;
+#ifndef __FreeBSD__
 	struct router		*rt;
+#endif
 	struct protocol		*proto;
 	struct relay		*rlay;
 	int			 id;
@@ -293,8 +320,10 @@ parent_configure(struct relayd *env)
 		config_settable(env, tb);
 	TAILQ_FOREACH(rdr, env->sc_rdrs, entry)
 		config_setrdr(env, rdr);
+#ifndef __FreeBSD__
 	TAILQ_FOREACH(rt, env->sc_rts, rt_entry)
 		config_setrt(env, rt);
+#endif
 	TAILQ_FOREACH(proto, env->sc_protos, entry)
 		config_setproto(env, proto);
 	TAILQ_FOREACH(proto, env->sc_protos, entry)
@@ -402,7 +431,9 @@ parent_shutdown(struct relayd *env)
 
 	proc_kill(env->sc_ps);
 	control_cleanup(&env->sc_ps->ps_csock);
+#ifndef __FreeBSD__
 	carp_demote_shutdown();
+#endif
 
 	free(env->sc_ps);
 	free(env);
@@ -416,12 +447,15 @@ int
 parent_dispatch_pfe(int fd, struct privsep_proc *p, struct imsg *imsg)
 {
 	struct relayd		*env = p->p_env;
+#ifndef __FreeBSD__
 	struct ctl_demote	 demote;
 	struct ctl_netroute	 crt;
+#endif
 	u_int			 v;
 	char			*str = NULL;
 
 	switch (imsg->hdr.type) {
+#ifndef __FreeBSD__
 	case IMSG_DEMOTE:
 		IMSG_SIZE_CHECK(imsg, &demote);
 		memcpy(&demote, imsg->data, sizeof(demote));
@@ -432,6 +466,7 @@ parent_dispatch_pfe(int fd, struct privsep_proc *p, struct imsg *imsg)
 		memcpy(&crt, imsg->data, sizeof(crt));
 		pfe_route(env, &crt);
 		break;
+#endif
 	case IMSG_CTL_RESET:
 		IMSG_SIZE_CHECK(imsg, &v);
 		memcpy(&v, imsg->data, sizeof(v));
@@ -472,9 +507,11 @@ parent_dispatch_hce(int fd, struct privsep_proc *p, struct imsg *imsg)
 		proc_compose_imsg(ps, PROC_HCE, -1, IMSG_SCRIPT,
 		    -1, &scr, sizeof(scr));
 		break;
+#ifndef __FreeBSD__
 	case IMSG_SNMPSOCK:
 		(void)snmp_setsock(env, p->p_id);
 		break;
+#endif
 	case IMSG_CFG_DONE:
 		parent_configure_done(env);
 		break;
@@ -574,7 +611,11 @@ purge_key(char **ptr, off_t len)
 	if (key == NULL || len == 0)
 		return;
 
+#ifndef __FreeBSD__
 	explicit_bzero(key, len);
+#else
+	bzero(key, len);
+#endif
 	free(key);
 
 	*ptr = NULL;
@@ -1094,6 +1135,7 @@ session_find(struct relayd *env, objid_t id)
 	return (NULL);
 }
 
+#ifndef __FreeBSD__
 struct netroute *
 route_find(struct relayd *env, objid_t id)
 {
@@ -1115,6 +1157,7 @@ router_find(struct relayd *env, objid_t id)
 			return (rt);
 	return (NULL);
 }
+#endif
 
 struct host *
 host_findbyname(struct relayd *env, const char *name)
@@ -1319,7 +1362,11 @@ digeststr(enum digest_type type, const u_int8_t *data, size_t len, char *buf)
 {
 	switch (type) {
 	case DIGEST_SHA1:
+#ifdef __FreeBSD__
+		return (SHA1_Data(data, len, buf));
+#else
 		return (SHA1Data(data, len, buf));
+#endif
 		break;
 	case DIGEST_MD5:
 		return (MD5Data(data, len, buf));
@@ -1397,9 +1444,17 @@ bindany(struct ctl_bindany *bnd)
 	    bnd->bnd_proto == IPPROTO_TCP ? SOCK_STREAM : SOCK_DGRAM,
 	    bnd->bnd_proto)) == -1)
 		goto fail;
+#ifdef SO_BINDANY
 	if (setsockopt(s, SOL_SOCKET, SO_BINDANY,
 	    &v, sizeof(v)) == -1)
 		goto fail;
+#else
+#ifdef IP_BINDANY
+	if (setsockopt(s, IPPROTO_IP, IP_BINDANY,
+	    &v, sizeof(v)) == -1)
+		goto fail;
+#endif
+#endif
 	if (bind(s, (struct sockaddr *)&bnd->bnd_ss,
 	    bnd->bnd_ss.ss_len) == -1)
 		goto fail;
@@ -1470,7 +1525,12 @@ socket_rlimit(int maxfd)
 
 	if (getrlimit(RLIMIT_NOFILE, &rl) == -1)
 		fatal("socket_rlimit: failed to get resource limit");
+#ifndef __FreeBSD__
 	log_debug("%s: max open files %llu", __func__, rl.rlim_max);
+#else
+	log_debug("%s: max open files %llu", __func__,
+	    (long long unsigned int)rl.rlim_max);
+#endif
 
 	/*
 	 * Allow the maximum number of open file descriptors for this
@@ -1609,6 +1669,7 @@ prefixlen2mask6(u_int8_t prefixlen, u_int32_t *mask)
 	return (&s6);
 }
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 int
 accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
     int reserve, volatile int *counter)
@@ -1626,3 +1687,4 @@ accept_reserve(int sockfd, struct sockaddr *addr, socklen_t *addrlen,
 	}
 	return (ret);
 }
+#endif

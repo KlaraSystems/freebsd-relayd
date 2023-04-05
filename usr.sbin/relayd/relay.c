@@ -16,7 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#else
 #include <sys/types.h>
+#endif
 #include <sys/queue.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -80,7 +84,9 @@ SSL_CTX		*relay_ssl_ctx_create(struct relay *);
 void		 relay_ssl_transaction(struct rsession *,
 		    struct ctl_relay_event *);
 void		 relay_ssl_accept(int, short, void *);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 void		 relay_connect_retry(int, short, void *);
+#endif
 void		 relay_ssl_connect(int, short, void *);
 void		 relay_ssl_connected(struct ctl_relay_event *);
 void		 relay_ssl_readcb(int, short, void *);
@@ -90,8 +96,12 @@ char		*relay_load_file(const char *, off_t *);
 extern void	 bufferevent_read_pressure_cb(struct evbuffer *, size_t,
 		    size_t, void *);
 
+#ifdef __FreeBSD__ /* file descriptor accounting */
+volatile sig_atomic_t relay_sessions;
+#else
 volatile int relay_sessions;
 volatile int relay_inflight = 0;
+#endif
 objid_t relay_conid;
 
 static struct relayd		*env = NULL;
@@ -499,6 +509,7 @@ relay_socket_af(struct sockaddr_storage *ss, in_port_t port)
 	return (0);
 }
 
+#ifndef __FreeBSD__
 in_port_t
 relay_socket_getport(struct sockaddr_storage *ss)
 {
@@ -514,6 +525,7 @@ relay_socket_getport(struct sockaddr_storage *ss)
 	/* NOTREACHED */
 	return (0);
 }
+#endif
 
 int
 relay_socket(struct sockaddr_storage *ss, in_port_t port,
@@ -582,6 +594,7 @@ relay_socket(struct sockaddr_storage *ss, in_port_t port,
 		    &val, sizeof(val)) == -1)
 			goto bad;
 	}
+#ifndef __FreeBSD__
 	if (proto->tcpflags & (TCPFLAG_SACK|TCPFLAG_NSACK)) {
 		if (proto->tcpflags & TCPFLAG_NSACK)
 			val = 0;
@@ -591,6 +604,7 @@ relay_socket(struct sockaddr_storage *ss, in_port_t port,
 		    &val, sizeof(val)) == -1)
 			goto bad;
 	}
+#endif
 
 	return (s);
 
@@ -715,8 +729,10 @@ relay_connected(int fd, short sig, void *arg)
 	    rlay->rl_conf.timeout.tv_sec, rlay->rl_conf.timeout.tv_sec);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
 
+#ifndef __FreeBSD__
 	if (relay_splice(&con->se_out) == -1)
 		relay_close(con, strerror(errno));
+#endif
 }
 
 void
@@ -761,8 +777,10 @@ relay_input(struct rsession *con)
 	    rlay->rl_conf.timeout.tv_sec, rlay->rl_conf.timeout.tv_sec);
 	bufferevent_enable(con->se_in.bev, EV_READ|EV_WRITE);
 
+#ifndef __FreeBSD__
 	if (relay_splice(&con->se_in) == -1)
 		relay_close(con, strerror(errno));
+#endif
 }
 
 void
@@ -775,14 +793,18 @@ relay_write(struct bufferevent *bev, void *arg)
 
 	if (con->se_done)
 		goto done;
+#ifndef __FreeBSD__
 	if (relay_splice(cre->dst) == -1)
 		goto fail;
+#endif
 	return;
  done:
 	relay_close(con, "last write (done)");
 	return;
+#ifndef __FreeBSD__
  fail:
 	relay_close(con, strerror(errno));
+#endif
 }
 
 void
@@ -829,6 +851,7 @@ relay_read(struct bufferevent *bev, void *arg)
 	relay_close(con, strerror(errno));
 }
 
+#ifndef __FreeBSD__
 int
 relay_splice(struct ctl_relay_event *cre)
 {
@@ -924,6 +947,7 @@ relay_spliceadjust(struct ctl_relay_event *cre)
 
 	return (0);
 }
+#endif
 
 void
 relay_error(struct bufferevent *bev, short error, void *arg)
@@ -933,6 +957,7 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 	struct evbuffer		*dst;
 
 	if (error & EVBUFFER_TIMEOUT) {
+#ifndef __FreeBSD__
 		if (cre->splicelen >= 0) {
 			bufferevent_enable(bev, EV_READ);
 		} else if (cre->dst->splicelen >= 0) {
@@ -950,9 +975,13 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 		} else {
 			relay_close(con, "buffer event timeout");
 		}
+#else
+		relay_close(con, "buffer event timeout");
+#endif
 		return;
 	}
 	if (error & EVBUFFER_ERROR && errno == ETIMEDOUT) {
+#ifndef __FreeBSD__
 		if (cre->dst->splicelen >= 0) {
 			switch (relay_splicelen(cre->dst)) {
 			case -1:
@@ -972,12 +1001,19 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 			goto fail;
 		if (relay_splice(cre) == -1)
 			goto fail;
+#else
+		relay_close(con, "buffer event timed out");
+#endif
 		return;
 	}
 	if (error & EVBUFFER_ERROR && errno == EFBIG) {
+#ifndef __FreeBSD__
 		if (relay_spliceadjust(cre) == -1)
 			goto fail;
 		bufferevent_enable(cre->bev, EV_READ);
+#else
+		relay_close(con, "buffer event error");
+#endif
 		return;
 	}
 	if (error & (EVBUFFER_READ|EVBUFFER_WRITE|EVBUFFER_EOF)) {
@@ -996,8 +1032,10 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 	}
 	relay_close(con, "buffer event error");
 	return;
+#ifndef __FreeBSD__ /* no socket splicing */
  fail:
 	relay_close(con, strerror(errno));
+#endif
 }
 
 void
@@ -1016,8 +1054,12 @@ relay_accept(int fd, short event, void *arg)
 		return;
 
 	slen = sizeof(ss);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	if ((s = accept_reserve(fd, (struct sockaddr *)&ss,
 	    &slen, FD_RESERVE, &relay_inflight)) == -1) {
+#else
+	if ((s = accept(fd, (struct sockaddr *)&ss, (socklen_t *)&slen)) == -1) {
+#endif
 		/*
 		 * Pause accept if we are out of file descriptors, or
 		 * libevent will haunt us here too.
@@ -1049,8 +1091,10 @@ relay_accept(int fd, short event, void *arg)
 	con->se_out.dst = &con->se_in;
 	con->se_in.con = con;
 	con->se_out.con = con;
+#ifndef __FreeBSD__
 	con->se_in.splicelen = -1;
 	con->se_out.splicelen = -1;
+#endif
 	con->se_in.toread = TOREAD_UNLIMITED;
 	con->se_out.toread = TOREAD_UNLIMITED;
 	con->se_relay = rlay;
@@ -1096,6 +1140,7 @@ relay_accept(int fd, short event, void *arg)
 		return;
 	}
 
+#ifndef __FreeBSD__
 	if (rlay->rl_conf.flags & F_DIVERT) {
 		slen = sizeof(con->se_out.ss);
 		if (getsockname(s, (struct sockaddr *)&con->se_out.ss,
@@ -1111,11 +1156,18 @@ relay_accept(int fd, short event, void *arg)
 		    con->se_out.port == rlay->rl_conf.port)
 			con->se_out.ss.ss_family = AF_UNSPEC;
 	} else if (rlay->rl_conf.flags & F_NATLOOK) {
+#else
+	if (rlay->rl_conf.flags & F_NATLOOK) {
+#endif
 		if ((cnl = calloc(1, sizeof(*cnl))) == NULL) {
 			relay_close(con, "failed to allocate nat lookup");
 			return;
 		}
+#ifdef __FreeBSD__
+	}
 
+	if (rlay->rl_conf.flags & F_NATLOOK && cnl != NULL) {
+#endif
 		con->se_cnl = cnl;
 		bzero(cnl, sizeof(*cnl));
 		cnl->in = -1;
@@ -1153,6 +1205,7 @@ relay_accept(int fd, short event, void *arg)
 		close(s);
 		if (con != NULL)
 			free(con);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		/*
 		 * the session struct was not completly set up, but still
 		 * counted as an inflight session. account for this.
@@ -1160,6 +1213,7 @@ relay_accept(int fd, short event, void *arg)
 		relay_inflight--;
 		log_debug("%s: inflight decremented, now %d",
 		    __func__, relay_inflight);
+#endif
 	}
 }
 
@@ -1382,6 +1436,7 @@ relay_bindany(int fd, short event, void *arg)
 		relay_close(con, "session failed");
 }
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 void
 relay_connect_retry(int fd, short sig, void *arg)
 {
@@ -1462,6 +1517,7 @@ relay_connect_retry(int fd, short sig, void *arg)
 
 	return;
 }
+#endif
 
 int
 relay_preconnect(struct rsession *con)
@@ -1475,9 +1531,12 @@ int
 relay_connect(struct rsession *con)
 {
 	struct relay	*rlay = con->se_relay;
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	struct timeval	 evtpause = { 1, 0 };
+#endif
 	int		 bnds = -1, ret;
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	/* Connection is already established but session not active */
 	if ((rlay->rl_conf.flags & F_SSLINSPECT) && con->se_out.s != -1) {
 		if (con->se_out.ssl == NULL) {
@@ -1490,6 +1549,7 @@ relay_connect(struct rsession *con)
 
 	if (relay_inflight < 1)
 		fatalx("relay_connect: no connection in flight");
+#endif
 
 	getmonotime(&con->se_tv_start);
 
@@ -1529,6 +1589,7 @@ relay_connect(struct rsession *con)
  retry:
 	if ((con->se_out.s = relay_socket_connect(&con->se_out.ss,
 	    con->se_out.port, rlay->rl_proto, bnds)) == -1) {
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		if (errno == ENFILE || errno == EMFILE) {
 			log_debug("%s: session %d: forward failed: %s",
 			    __func__, con->se_id, strerror(errno));
@@ -1552,11 +1613,26 @@ relay_connect(struct rsession *con)
 			    __func__, con->se_id, strerror(errno));
 			return (-1);
 		}
+#else
+		if (con->se_retry) {
+			con->se_retry--;
+			log_debug("%s: session %d: "
+			    "forward failed: %s, %s", __func__,
+			    con->se_id, strerror(errno),
+			    con->se_retry ? "next retry" : "last retry");
+			goto retry;
+		}
+		log_debug("%s: session %d: forward failed: %s", __func__,
+		    con->se_id, strerror(errno));
+		return (-1);
+#endif
 	}
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	relay_inflight--;
 	DPRINTF("%s: inflight decremented, now %d",__func__,
 	    relay_inflight);
+#endif
 
 	if (errno == EINPROGRESS)
 		event_again(&con->se_ev, con->se_out.s, EV_WRITE|EV_TIMEOUT,
@@ -1593,7 +1669,11 @@ relay_close(struct rsession *con, const char *msg)
 			ptr = evbuffer_readline(con->se_log);
 		log_info("relay %s, "
 		    "session %d (%d active), %s, %s -> %s:%d, "
+#ifndef __FreeBSD__
 		    "%s%s%s", rlay->rl_conf.name, con->se_id, relay_sessions,
+#else
+		    "%s%s%s", rlay->rl_conf.name, con->se_id, (int)relay_sessions,
+#endif
 		    con->se_tag != 0 ? tag_id2name(con->se_tag) : "0", ibuf,
 		    obuf, ntohs(con->se_out.port), msg, ptr == NULL ? "" : ",",
 		    ptr == NULL ? "" : ptr);
@@ -1620,6 +1700,7 @@ relay_close(struct rsession *con, const char *msg)
 		X509_free(con->se_in.sslcert);
 	if (con->se_in.s != -1) {
 		close(con->se_in.s);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		if (con->se_out.s == -1) {
 			/*
 			 * the output was never connected,
@@ -1629,6 +1710,7 @@ relay_close(struct rsession *con, const char *msg)
 			log_debug("%s: sessions inflight decremented, now %d",
 			    __func__, relay_inflight);
 		}
+#endif
 	}
 	if (con->se_in.buf != NULL)
 		free(con->se_in.buf);
@@ -2015,7 +2097,7 @@ relay_ssl_ctx_create(struct relay *rlay)
 	/* Verify the server certificate if we have a CA chain */
 	if ((rlay->rl_conf.flags & F_SSLCLIENT) &&
 	    (rlay->rl_ssl_ca != NULL)) {
-		if (!ssl_ctx_load_verify_memory(ctx,
+		if (!SSL_CTX_load_verify_mem(ctx,
 		    rlay->rl_ssl_ca, rlay->rl_conf.ssl_ca_len))
 			goto err;
 		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
@@ -2025,7 +2107,7 @@ relay_ssl_ctx_create(struct relay *rlay)
 		return (ctx);
 
 	log_debug("%s: loading certificate", __func__);
-	if (!ssl_ctx_use_certificate_chain(ctx,
+	if (!SSL_CTX_use_certificate_chain_mem(ctx,
 	    rlay->rl_ssl_cert, rlay->rl_conf.ssl_cert_len))
 		goto err;
 
@@ -2049,8 +2131,12 @@ relay_ssl_ctx_create(struct relay *rlay)
 	}
 
 	/* Set session context to the local relay name */
-	if (!SSL_CTX_set_session_id_context(ctx, rlay->rl_conf.name,
-	    strlen(rlay->rl_conf.name)))
+	if (!SSL_CTX_set_session_id_context(ctx,
+#ifdef __FreeBSD__
+	    (unsigned char*)rlay->rl_conf.name, strlen(rlay->rl_conf.name)))
+#else
+	    rlay->rl_conf.name, strlen(rlay->rl_conf.name)))
+#endif
 		goto err;
 
 	/* The text versions of the keys/certs are not needed anymore */
@@ -2072,7 +2158,7 @@ relay_ssl_transaction(struct rsession *con, struct ctl_relay_event *cre)
 	struct relay		*rlay = con->se_relay;
 	struct protocol	*proto = rlay->rl_proto;
 	SSL			*ssl;
-	const SSL_METHOD	*method;
+	SSL_METHOD		*method;
 	void			(*cb)(int, short, void *);
 	u_int			 flag;
 
@@ -2175,7 +2261,11 @@ relay_ssl_accept(int fd, short event, void *arg)
 	log_debug(
 #endif
 	    "relay %s, session %d established (%d active)",
+#ifndef __FreeBSD__
 	    rlay->rl_conf.name, con->se_id, relay_sessions);
+#else
+	    rlay->rl_conf.name, con->se_id, (int)relay_sessions);
+#endif
 
 	relay_session(con);
 	return;
@@ -2233,7 +2323,11 @@ relay_ssl_connect(int fd, short event, void *arg)
 	log_debug(
 #endif
 	    "relay %s, ssl session %d connected (%d active)",
+#ifndef __FreeBSD__
 	    rlay->rl_conf.name, con->se_id, relay_sessions);
+#else
+	    rlay->rl_conf.name, con->se_id, (int)relay_sessions);
+#endif
 
 	if (rlay->rl_conf.flags & F_SSLINSPECT) {
 		if ((servercert =
@@ -2567,7 +2661,11 @@ relay_load_file(const char *name, off_t *len)
 	close(fd);
 
 	*len = size;
+#ifndef __FreeBSD__
 	return (buf);
+#else
+	return (char *)(buf);
+#endif
 
  fail:
 	if (buf != NULL)
@@ -2618,12 +2716,12 @@ relay_load_certfiles(struct relay *rlay)
 		return (-1);
 
 	if (snprintf(certfile, sizeof(certfile),
-	    "/etc/ssl/%s:%u.crt", hbuf, useport) == -1)
+	    "/usr/local/etc/ssl/%s:%u.crt", hbuf, useport) == -1)
 		return (-1);
 	if ((rlay->rl_ssl_cert = relay_load_file(certfile,
 	    &rlay->rl_conf.ssl_cert_len)) == NULL) {
 		if (snprintf(certfile, sizeof(certfile),
-		    "/etc/ssl/%s.crt", hbuf) == -1)
+		    "/usr/local/etc/ssl/%s.crt", hbuf) == -1)
 			return (-1);
 		if ((rlay->rl_ssl_cert = relay_load_file(certfile,
 		    &rlay->rl_conf.ssl_cert_len)) == NULL)
@@ -2634,11 +2732,11 @@ relay_load_certfiles(struct relay *rlay)
 
 	if (useport) {
 		if (snprintf(certfile, sizeof(certfile),
-		    "/etc/ssl/private/%s:%u.key", hbuf, useport) == -1)
+		    "/usr/local/etc/ssl/private/%s:%u.key", hbuf, useport) == -1)
 			return -1;
 	} else {
 		if (snprintf(certfile, sizeof(certfile),
-		    "/etc/ssl/private/%s.key", hbuf) == -1)
+		    "/usr/local/etc/ssl/private/%s.key", hbuf) == -1)
 			return -1;
 	}
 	if ((rlay->rl_ssl_key = ssl_load_key(env, certfile,
