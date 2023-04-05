@@ -24,6 +24,10 @@ CFLAGS+=	-Wall -I${.CURDIR}
 LDADD:=		${LDALL:N-lssl} ${LIBSSL}
 # Pass the right libcrypto implementation.
 LDADD:=		${LDALL:N-lcrypto} ${LIBCRYPTO}
+
+# Set LIBEVENT and LIBUTIL to the appropriate build artifacts.
+LIBEVENT=	${.CURDIR}/../../lib/libevent/libevent.a
+LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
 # END FreeBSD-relayd
 DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
