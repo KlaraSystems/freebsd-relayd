@@ -28,6 +28,7 @@ CFLAGS+=	-Wall -Werror -I${.CURDIR} -I${.CURDIR}/../relayd
 CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
+CFLAGS+=	-I${OPENSSLINCDIR}
 # END FreeBSD-relayd
 CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+=	-Wmissing-declarations
