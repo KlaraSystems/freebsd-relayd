@@ -80,7 +80,7 @@ again:
 		return (-1);
 	}
 #endif
-
+	
 	if ((n = recvmsg(ibuf->fd, &msg, 0)) == -1) {
 #ifndef __FreeBSD__
 		if (errno == EINTR)
@@ -272,7 +272,11 @@ imsg_close(struct imsgbuf *ibuf, struct ibuf *msg)
 void
 imsg_free(struct imsg *imsg)
 {
+#ifdef __FreeBSD__
+	free(imsg->data);
+#else
 	freezero(imsg->data, imsg->hdr.len - IMSG_HEADER_SIZE);
+#endif
 }
 
 static int
