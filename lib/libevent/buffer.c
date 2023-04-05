@@ -1,5 +1,3 @@
-/*	$OpenBSD: buffer.c,v 1.19 2010/07/17 17:16:47 chl Exp $	*/
-
 /*
  * Copyright (c) 2002, 2003 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -64,6 +62,7 @@
 #endif
 
 #include "event.h"
+#include "config.h"
 #include "evutil.h"
 #include "./log.h"
 
@@ -116,7 +115,7 @@ evbuffer_add_buffer(struct evbuffer *outbuf, struct evbuffer *inbuf)
 		/* 
 		 * Optimization comes with a price; we need to notify the
 		 * buffer if necessary of the changes. oldoff is the amount
-		 * of data that we transferred from inbuf to outbuf
+		 * of data that we transfered from inbuf to outbuf
 		 */
 		if (inbuf->off != oldoff && inbuf->cb != NULL)
 			(*inbuf->cb)(inbuf, oldoff, inbuf->off, inbuf->cbarg);

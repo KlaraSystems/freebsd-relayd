@@ -1,5 +1,3 @@
-/*	$OpenBSD: event-internal.h,v 1.6 2010/04/21 20:02:40 nicm Exp $	*/
-
 /*
  * Copyright (c) 2000-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -33,6 +31,7 @@
 extern "C" {
 #endif
 
+#include "config.h"
 #include "min_heap.h"
 #include "evsignal.h"
 

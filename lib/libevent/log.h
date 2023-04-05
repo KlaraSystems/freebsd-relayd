@@ -1,5 +1,3 @@
-/*	$OpenBSD: log.h,v 1.6 2010/04/21 20:02:40 nicm Exp $	*/
-
 /*
  * Copyright (c) 2000-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.

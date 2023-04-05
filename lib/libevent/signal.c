@@ -1,4 +1,4 @@
-/*	$OpenBSD: signal.c,v 1.16 2013/04/29 00:28:23 okan Exp $	*/
+/*	$OpenBSD: select.c,v 1.2 2002/06/25 15:50:15 mickey Exp $	*/
 
 /*
  * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
@@ -67,6 +67,13 @@ struct event_base *evsignal_base = NULL;
 
 static void evsignal_handler(int sig);
 
+#ifdef WIN32
+#define error_is_eagain(err)			\
+	((err) == EAGAIN || (err) == WSAEWOULDBLOCK)
+#else
+#define error_is_eagain(err) ((err) == EAGAIN)
+#endif
+
 /* Callback for when the signal handler write a byte to our signaling socket */
 static void
 evsignal_cb(int fd, short what, void *arg)
@@ -79,13 +86,16 @@ evsignal_cb(int fd, short what, void *arg)
 #endif
 
 	n = recv(fd, signals, sizeof(signals), 0);
-	if (n == -1)
-		event_err(1, "%s: read", __func__);
+	if (n == -1) {
+		int err = EVUTIL_SOCKET_ERROR();
+		if (! error_is_eagain(err))
+			event_err(1, "%s: read", __func__);
+	}
 }
 
 #ifdef HAVE_SETFD
 #define FD_CLOSEONEXEC(x) do { \
-        if (fcntl(x, F_SETFD, FD_CLOEXEC) == -1) \
+        if (fcntl(x, F_SETFD, 1) == -1) \
                 event_warn("fcntl(%d, F_SETFD)", x); \
 } while (0)
 #else
@@ -125,6 +135,7 @@ evsignal_init(struct event_base *base)
 		TAILQ_INIT(&base->sig.evsigevents[i]);
 
         evutil_make_socket_nonblocking(base->sig.ev_signal_pair[0]);
+        evutil_make_socket_nonblocking(base->sig.ev_signal_pair[1]);
 
 	event_set(&base->sig.ev_signal, base->sig.ev_signal_pair[1],
 		EV_READ | EV_PERSIST, evsignal_cb, &base->sig.ev_signal);
@@ -358,7 +369,7 @@ evsignal_dealloc(struct event_base *base)
 	}
 	base->sig.sh_old_max = 0;
 
-	/* per index frees are handled in evsignal_del() */
+	/* per index frees are handled in evsig_del() */
 	if (base->sig.sh_old) {
 		free(base->sig.sh_old);
 		base->sig.sh_old = NULL;

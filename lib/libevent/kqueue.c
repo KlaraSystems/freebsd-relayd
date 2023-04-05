@@ -1,4 +1,4 @@
-/*	$OpenBSD: kqueue.c,v 1.28 2012/02/08 09:01:00 nicm Exp $	*/
+/*	$OpenBSD: kqueue.c,v 1.5 2002/07/10 14:41:31 art Exp $	*/
 
 /*
  * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
@@ -122,12 +122,12 @@ kq_init(struct event_base *base)
 	kqueueop->pid = getpid();
 
 	/* Initalize fields */
-	kqueueop->changes = calloc(NEVENT, sizeof(struct kevent));
+	kqueueop->changes = malloc(NEVENT * sizeof(struct kevent));
 	if (kqueueop->changes == NULL) {
 		free (kqueueop);
 		return (NULL);
 	}
-	kqueueop->events = calloc(NEVENT, sizeof(struct kevent));
+	kqueueop->events = malloc(NEVENT * sizeof(struct kevent));
 	if (kqueueop->events == NULL) {
 		free (kqueueop->changes);
 		free (kqueueop);
@@ -141,6 +141,7 @@ kq_init(struct event_base *base)
 	}
 
 	/* Check for Mac OS X kqueue bug. */
+	memset(&kqueueop->changes[0], 0, sizeof kqueueop->changes[0]);
 	kqueueop->changes[0].ident = -1;
 	kqueueop->changes[0].filter = EVFILT_READ;
 	kqueueop->changes[0].flags = EV_ADD;
@@ -248,47 +249,27 @@ kq_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 		int which = 0;
 
 		if (events[i].flags & EV_ERROR) {
-			switch (events[i].data) {
-
-			/* Can occur on delete if we are not currently
-			 * watching any events on this fd.  That can
-			 * happen when the fd was closed and another
-			 * file was opened with that fd. */
-			case ENOENT:
-			/* Can occur for reasons not fully understood
-			 * on FreeBSD. */
-			case EINVAL:
+			/* 
+			 * Error messages that can happen, when a delete fails.
+			 *   EBADF happens when the file discriptor has been
+			 *   closed,
+			 *   ENOENT when the file discriptor was closed and
+			 *   then reopened.
+			 *   EINVAL for some reasons not understood; EINVAL
+			 *   should not be returned ever; but FreeBSD does :-\
+			 * An error is also indicated when a callback deletes
+			 * an event we are still processing.  In that case
+			 * the data field is set to ENOENT.
+			 */
+			if (events[i].data == EBADF ||
+			    events[i].data == EINVAL ||
+			    events[i].data == ENOENT)
 				continue;
-			/* Can occur on a delete if the fd is closed.  Can
-			 * occur on an add if the fd was one side of a pipe,
-			 * and the other side was closed. */
-			case EBADF:
-				continue;
-			/* These two can occur on an add if the fd was one side
-			 * of a pipe, and the other side was closed. */
-			case EPERM:
-			case EPIPE:
-				/* Report read events, if we're listening for
-				 * them, so that the user can learn about any
-				 * add errors.  (If the operation was a
-				 * delete, then udata should be cleared.) */
-				if (events[i].udata) {
-					/* The operation was an add:
-					 * report the error as a read. */
-					which |= EV_READ;
-					break;
-				} else {
-					/* The operation was a del:
-					 * report nothing. */
-					continue;
-				}
+			errno = events[i].data;
+			return (-1);
+		}
 
-			/* Other errors shouldn't occur. */
-			default:
-				errno = events[i].data;
-				return (-1);
-			}
-		} else if (events[i].filter == EVFILT_READ) {
+		if (events[i].filter == EVFILT_READ) {
 			which |= EV_READ;
 		} else if (events[i].filter == EVFILT_WRITE) {
 			which |= EV_WRITE;
@@ -343,7 +324,7 @@ kq_add(void *arg, struct event *ev)
 			 * kq_dispatch. */
 			if (kevent(kqop->kq, &kev, 1, NULL, 0, &timeout) == -1)
 				return (-1);
-
+			
 			if (_evsignal_set_handler(ev->ev_base, nsignal,
 				kq_sighandler) == -1)
 				return (-1);

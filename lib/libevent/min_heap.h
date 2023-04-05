@@ -1,5 +1,3 @@
-/*	$OpenBSD: min_heap.h,v 1.2 2010/07/12 18:03:38 nicm Exp $	*/
-
 /*
  * Copyright (c) 2006 Maxim Yegorushkin <maxim.yegorushkin@gmail.com>
  * All rights reserved.

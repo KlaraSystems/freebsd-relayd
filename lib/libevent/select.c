@@ -1,4 +1,4 @@
-/*	$OpenBSD: select.c,v 1.17 2013/08/24 10:46:48 dlg Exp $	*/
+/*	$OpenBSD: select.c,v 1.2 2002/06/25 15:50:15 mickey Exp $	*/
 
 /*
  * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
@@ -60,7 +60,7 @@
 #define        howmany(x, y)   (((x)+((y)-1))/(y))
 #endif
 
-#ifndef HAVE_FD_MASK
+#ifndef _EVENT_HAVE_FD_MASK
 /* This type is mandatory, but Android doesn't define it. */
 #undef NFDBITS
 #define NFDBITS (sizeof(long)*8)
@@ -175,7 +175,7 @@ select_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 	event_debug(("%s: select reports %d", __func__, res));
 
 	check_selectop(sop);
-	i = arc4random_uniform(sop->event_fds + 1);
+	i = random() % (sop->event_fds+1);
 	for (j = 0; j <= sop->event_fds; ++j) {
 		struct event *r_ev = NULL, *w_ev = NULL;
 		if (++i >= sop->event_fds+1)

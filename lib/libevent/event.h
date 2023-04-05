@@ -1,5 +1,3 @@
-/*	$OpenBSD: event.h,v 1.26 2014/04/03 11:27:02 eric Exp $	*/
-
 /*
  * Copyright (c) 2000-2007 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -50,7 +48,7 @@
   to redesign the applications. As a result, Libevent allows for portable
   application development and provides the most scalable event notification
   mechanism available on an operating system. Libevent can also be used for
-  multi-threaded applications; see Steven Grimm's explanation. Libevent should
+  multi-threaded aplications; see Steven Grimm's explanation. Libevent should
   compile on Linux, *BSD, Mac OS X, Solaris and Windows.
 
   @section usage Standard usage
@@ -161,15 +159,28 @@
 extern "C" {
 #endif
 
+#include <event-config.h>
+#ifdef _EVENT_HAVE_SYS_TYPES_H
 #include <sys/types.h>
+#endif
+#ifdef _EVENT_HAVE_SYS_TIME_H
 #include <sys/time.h>
-#include <sys/queue.h>
-
-#include <stdarg.h>
+#endif
+#ifdef _EVENT_HAVE_STDINT_H
 #include <stdint.h>
+#endif
+#include <stdarg.h>
 
 /* For int types. */
 #include <evutil.h>
+
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#undef WIN32_LEAN_AND_MEAN
+typedef unsigned char u_char;
+typedef unsigned short u_short;
+#endif
 
 #define EVLIST_TIMEOUT	0x01
 #define EVLIST_INSERTED	0x02
@@ -185,7 +196,17 @@ extern "C" {
 #define EV_READ		0x02
 #define EV_WRITE	0x04
 #define EV_SIGNAL	0x08
-#define EV_PERSIST	0x10	/* Persistent event */
+#define EV_PERSIST	0x10	/* Persistant event */
+
+/* Fix so that ppl dont have to run with <sys/queue.h> */
+#ifndef TAILQ_ENTRY
+#define _EVENT_DEFINED_TQENTRY
+#define TAILQ_ENTRY(type)						\
+struct {								\
+	struct type *tqe_next;	/* next element */			\
+	struct type **tqe_prev;	/* address of previous next element */	\
+}
+#endif /* !TAILQ_ENTRY */
 
 struct event_base;
 #ifndef EVENT_NO_STRUCT
@@ -230,8 +251,15 @@ struct evkeyval {
 	char *value;
 };
 
+#ifdef _EVENT_DEFINED_TQENTRY
+#undef TAILQ_ENTRY
+struct event_list;
+struct evkeyvalq;
+#undef _EVENT_DEFINED_TQENTRY
+#else
 TAILQ_HEAD (event_list, event);
 TAILQ_HEAD (evkeyvalq, evkeyval);
+#endif /* _EVENT_DEFINED_TQENTRY */
 
 /**
   Initialize the event API.
@@ -453,14 +481,6 @@ int event_base_loopbreak(struct event_base *);
 #define evtimer_pending(ev, tv)		event_pending(ev, EV_TIMEOUT, tv)
 #define evtimer_initialized(ev)		((ev)->ev_flags & EVLIST_INIT)
 
-#ifdef EVENT_DEPRECATED
-/*
- * timeout_* are collision-prone names for macros, and they are
- * deprecated. Define EVENT_DEPRECATED to expose them anyway.
- *
- * It is recommended evtimer_* be used instead.
- */
-
 /**
  * Add a timeout event.
  *
@@ -489,8 +509,6 @@ int event_base_loopbreak(struct event_base *);
 
 #define timeout_pending(ev, tv)		event_pending(ev, EV_TIMEOUT, tv)
 #define timeout_initialized(ev)		((ev)->ev_flags & EVLIST_INIT)
-
-#endif /* EVENT_DEPRECATED */
 
 #define signal_add(ev, tv)		event_add(ev, tv)
 #define signal_set(ev, x, cb, arg)	\
@@ -701,27 +719,6 @@ int	event_base_priority_init(struct event_base *, int);
   @see event_priority_init()
   */
 int	event_priority_set(struct event *, int);
-
-
-/* Simple helpers for ASR async resolution API. */
-
-/* We don't want to pull asr.h here */
-struct asr_query;
-struct asr_result;
-
-struct event_asr;
-
-/**
- * Schedule an async query to run in the libevent event loop, and trigger
- * a callback when done. Returns an opaque async event handle.
- */
-struct event_asr * event_asr_run(struct asr_query *,
-    void (*)(struct asr_result *, void *), void *);
-
-/**
- * Cancel a running async query associated to an handle.
- */
-void event_asr_abort(struct event_asr *);
 
 
 /* These functions deal with buffering input and output */
@@ -1207,8 +1204,6 @@ int evtag_unmarshal_string(struct evbuffer *evbuf, ev_uint32_t need_tag,
 
 int evtag_unmarshal_timeval(struct evbuffer *evbuf, ev_uint32_t need_tag,
     struct timeval *ptv);
-
-#define _EVENT_VERSION "1.4.14b-stable"
 
 #ifdef __cplusplus
 }

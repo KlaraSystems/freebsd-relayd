@@ -1,5 +1,3 @@
-/*	$OpenBSD: evbuffer.c,v 1.12 2010/04/21 20:02:40 nicm Exp $	*/
-
 /*
  * Copyright (c) 2002-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
