@@ -11,4 +11,8 @@ SUBDIR=	csu libagentx libarch libc libcbor libcrypto libcurses \
 # Phase 2
 SUBDIR+=libfido2
 
+# BEGIN FreeBSD-relayd
+SUBDIR=	libevent libutil
+# END FreeBSD-relayd
+
 .include <bsd.subdir.mk>
