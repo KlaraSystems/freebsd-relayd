@@ -29,4 +29,5 @@ CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare -Wcast-qual
 YFLAGS=
 
+.include <freebsd.mk>
 .include <bsd.prog.mk>
