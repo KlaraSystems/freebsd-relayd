@@ -146,8 +146,10 @@ main(int argc, char *argv[])
 		err(1, "connect: %s", sockname);
 	}
 
+#ifndef __FreeBSD__
 	if (pledge("stdio", NULL) == -1)
 		err(1, "pledge");
+#endif
 
 	if ((ibuf = malloc(sizeof(struct imsgbuf))) == NULL)
 		err(1, NULL);
@@ -359,7 +361,11 @@ show_summary_msg(struct imsg *imsg, int type)
 	struct netroute		*nr;
 #endif
 	struct ctl_stats	 stats[PROC_MAX_INSTANCES];
+#ifdef __FreeBSD__
+	char			 name[MAXHOSTNAMELEN];
+#else
 	char			 name[HOST_NAME_MAX+1];
+#endif
 
 	switch (imsg->hdr.type) {
 	case IMSG_CTL_RDR:
