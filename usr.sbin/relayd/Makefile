@@ -20,6 +20,14 @@ LDADD=		-lagentx -levent -ltls -lssl -lcrypto -lutil
 DPADD=		${LIBAGENTX} ${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR}
 # BEGIN FreeBSD-relayd
+# Pass the right LibreSSL library.
+LDADD:=		${LDALL:N-lssl} ${LIBSSL}
+# Pass the right libcrypto implementation.
+LDADD:=		${LDALL:N-lcrypto} ${LIBCRYPTO}
+# END FreeBSD-relayd
+DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
+CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
+# BEGIN FreeBSD-relayd
 # Currently, relayd does not support SNMP traps on FreeBSD.
 CFLAGS:=	${CFLAGS:N-I${.CURDIR}/../snmpd}
 
