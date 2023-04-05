@@ -77,6 +77,10 @@ MLINKS += ohash_init.3 ohash_delete.3 \
 	ohash_interval.3 ohash_qlookupi.3 \
 	ohash_interval.3 ohash_qlookup.3
 
+# BEGIN FreeBSD-relayd
+SRCS=	imsg.c imsg-buffer.c
+# END FreeBSD-relayd
+
 includes:
 	@cd ${.CURDIR}; for i in $(HDRS); do \
 	    j="cmp -s $$i ${DESTDIR}/usr/include/$$i || \
