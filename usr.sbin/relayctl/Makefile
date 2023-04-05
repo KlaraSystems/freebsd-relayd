@@ -11,6 +11,7 @@ LDADD=		-lutil
 DPADD=		${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../relayd
 # BEGIN FreeBSD-relayd
+CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
 # END FreeBSD-relayd
