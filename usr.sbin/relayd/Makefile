@@ -1,5 +1,7 @@
 #	$OpenBSD: Makefile,v 1.35 2020/10/26 16:52:06 martijn Exp $
 
+.include <freebsd.mk>
+
 PROG=		relayd
 SRCS=		parse.y
 SRCS+=		agentx_control.c ca.c carp.c check_icmp.c check_script.c \
@@ -54,5 +56,4 @@ CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare -Wcast-qual
 YFLAGS=
 
-.include <freebsd.mk>
 .include <bsd.prog.mk>
