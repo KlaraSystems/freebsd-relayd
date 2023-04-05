@@ -69,6 +69,15 @@ afterinstall:
 	cd ${.CURDIR}/distrib/sets && exec ${MAKE} makedb
 .endif
 
+# BEGIN FreeBSD-relayd
+build:
+	@true
+# END FreeBSD-relayd
+
+# BEGIN FreeBSD-relayd
+# Disable the default build target.
+.if !target(build)
+# END FreeBSD-relayd
 .ifdef DESTDIR
 build:
 	@echo cannot build with DESTDIR set
@@ -101,6 +110,9 @@ do-build:
 	    exec ${MAKE} install
 	/bin/sh ${.CURDIR}/distrib/sets/makeetcset ${.CURDIR} ${MAKE}
 .endif
+# BEGIN FreeBSD-relayd
+.endif # !target(build)
+# END FreeBSD-relayd
 
 CROSS_TARGETS=cross-env cross-dirs cross-obj cross-includes cross-binutils \
 	cross-gcc cross-tools cross-lib cross-bin cross-etc-root-var \
