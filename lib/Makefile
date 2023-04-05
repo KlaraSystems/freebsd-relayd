@@ -12,7 +12,7 @@ SUBDIR=	csu libagentx libarch libc libcbor libcrypto libcurses \
 SUBDIR+=libfido2
 
 # BEGIN FreeBSD-relayd
-SUBDIR=	libevent libutil
+SUBDIR=	libutil
 # END FreeBSD-relayd
 
 .include <bsd.subdir.mk>
