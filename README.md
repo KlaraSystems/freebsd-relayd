@@ -3,7 +3,7 @@
 ## Building
 
 ```
-env LIBCRYPTO=... LIBSSL=... LOCALBASE=... OPENSSLINCDIR=... PREFIX=... ./configure
+env LIBCRYPTO=... LIBSSL=... LIBTLS=... LOCALBASE=... OPENSSLINCDIR=... PREFIX=... ./configure
 make
 ```
 
