@@ -16,4 +16,5 @@ CFLAGS+=	-Wshadow -Wpointer-arith -Wcast-qual
 CFLAGS+=	-Wsign-compare
 CDIAGFLAGS=
 
+.include <freebsd.mk>
 .include <bsd.prog.mk>
