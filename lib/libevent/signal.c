@@ -1,4 +1,4 @@
-/*	$OpenBSD: signal.c,v 1.25 2015/01/06 11:42:37 bluhm Exp $	*/
+/*	$OpenBSD: select.c,v 1.2 2002/06/25 15:50:15 mickey Exp $	*/
 
 /*
  * Copyright 2000-2002 Niels Provos <provos@citi.umich.edu>
@@ -26,24 +26,41 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <windows.h>
+#undef WIN32_LEAN_AND_MEAN
+#endif
 #include <sys/types.h>
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#endif
 #include <sys/queue.h>
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
-
+#endif
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <errno.h>
+#ifdef HAVE_FCNTL_H
 #include <fcntl.h>
+#endif
 #include <assert.h>
 
 #include "event.h"
 #include "event-internal.h"
 #include "evsignal.h"
+#include "evutil.h"
 #include "log.h"
 
 struct event_base *evsignal_base = NULL;
@@ -62,7 +79,11 @@ static void
 evsignal_cb(int fd, short what, void *arg)
 {
 	static char signals[1];
+#ifdef WIN32
+	SSIZE_T n;
+#else
 	ssize_t n;
+#endif
 
 	n = recv(fd, signals, sizeof(signals), 0);
 	if (n == -1) {
@@ -86,17 +107,25 @@ evsignal_init(struct event_base *base)
 {
 	int i;
 
-	/*
+	/* 
 	 * Our signal handler is going to write to one end of the socket
 	 * pair to wake up our event loop.  The event loop then scans for
 	 * signals that got delivered.
 	 */
-	if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK,
-	    0, base->sig.ev_signal_pair) == -1) {
+	if (evutil_socketpair(
+		    AF_UNIX, SOCK_STREAM, 0, base->sig.ev_signal_pair) == -1) {
+#ifdef WIN32
+		/* Make this nonfatal on win32, where sometimes people
+		   have localhost firewalled. */
+		event_warn("%s: socketpair", __func__);
+#else
 		event_err(1, "%s: socketpair", __func__);
+#endif
 		return -1;
 	}
 
+	FD_CLOSEONEXEC(base->sig.ev_signal_pair[0]);
+	FD_CLOSEONEXEC(base->sig.ev_signal_pair[1]);
 	base->sig.sh_old = NULL;
 	base->sig.sh_old_max = 0;
 	base->sig.evsignal_caught = 0;
@@ -122,7 +151,11 @@ int
 _evsignal_set_handler(struct event_base *base,
 		      int evsignal, void (*handler)(int))
 {
+#ifdef HAVE_SIGACTION
 	struct sigaction sa;
+#else
+	ev_sighandler_t sh;
+#endif
 	struct evsignal_info *sig = &base->sig;
 	void *p;
 
@@ -134,7 +167,7 @@ _evsignal_set_handler(struct event_base *base,
 		int new_max = evsignal + 1;
 		event_debug(("%s: evsignal (%d) >= sh_old_max (%d), resizing",
 			    __func__, evsignal, sig->sh_old_max));
-		p = reallocarray(sig->sh_old, new_max, sizeof(*sig->sh_old));
+		p = realloc(sig->sh_old, new_max * sizeof(*sig->sh_old));
 		if (p == NULL) {
 			event_warn("realloc");
 			return (-1);
@@ -155,6 +188,7 @@ _evsignal_set_handler(struct event_base *base,
 	}
 
 	/* save previous handler and setup new handler */
+#ifdef HAVE_SIGACTION
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = handler;
 	sa.sa_flags |= SA_RESTART;
@@ -166,6 +200,15 @@ _evsignal_set_handler(struct event_base *base,
 		sig->sh_old[evsignal] = NULL;
 		return (-1);
 	}
+#else
+	if ((sh = signal(evsignal, handler)) == SIG_ERR) {
+		event_warn("signal");
+		free(sig->sh_old[evsignal]);
+		sig->sh_old[evsignal] = NULL;
+		return (-1);
+	}
+	*sig->sh_old[evsignal] = sh;
+#endif
 
 	return (0);
 }
@@ -208,15 +251,26 @@ _evsignal_restore_handler(struct event_base *base, int evsignal)
 {
 	int ret = 0;
 	struct evsignal_info *sig = &base->sig;
+#ifdef HAVE_SIGACTION
 	struct sigaction *sh;
+#else
+	ev_sighandler_t *sh;
+#endif
 
 	/* restore previous handler */
 	sh = sig->sh_old[evsignal];
 	sig->sh_old[evsignal] = NULL;
+#ifdef HAVE_SIGACTION
 	if (sigaction(evsignal, sh, NULL) == -1) {
 		event_warn("sigaction");
 		ret = -1;
 	}
+#else
+	if (signal(evsignal, *sh) == SIG_ERR) {
+		event_warn("signal");
+		ret = -1;
+	}
+#endif
 	free(sh);
 
 	return ret;
@@ -257,6 +311,10 @@ evsignal_handler(int sig)
 	evsignal_base->sig.evsigcaught[sig]++;
 	evsignal_base->sig.evsignal_caught = 1;
 
+#ifndef HAVE_SIGACTION
+	signal(sig, evsignal_handler);
+#endif
+
 	/* Wake up our notification mechanism */
 	send(evsignal_base->sig.ev_signal_pair[0], "a", 1, 0);
 	errno = save_errno;
@@ -269,7 +327,7 @@ evsignal_process(struct event_base *base)
 	struct event *ev, *next_ev;
 	sig_atomic_t ncalls;
 	int i;
-
+	
 	base->sig.evsignal_caught = 0;
 	for (i = 1; i < NSIG; ++i) {
 		ncalls = sig->evsigcaught[i];
@@ -302,11 +360,11 @@ evsignal_dealloc(struct event_base *base)
 	}
 
 	if (base->sig.ev_signal_pair[0] != -1) {
-		close(base->sig.ev_signal_pair[0]);
+		EVUTIL_CLOSESOCKET(base->sig.ev_signal_pair[0]);
 		base->sig.ev_signal_pair[0] = -1;
 	}
 	if (base->sig.ev_signal_pair[1] != -1) {
-		close(base->sig.ev_signal_pair[1]);
+		EVUTIL_CLOSESOCKET(base->sig.ev_signal_pair[1]);
 		base->sig.ev_signal_pair[1] = -1;
 	}
 	base->sig.sh_old_max = 0;

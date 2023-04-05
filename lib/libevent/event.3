@@ -29,11 +29,24 @@
 .Sh NAME
 .Nm event_init ,
 .Nm event_dispatch ,
+.Nm event_loop ,
+.Nm event_loopexit ,
+.Nm event_loopbreak ,
 .Nm event_set ,
+.Nm event_base_dispatch ,
+.Nm event_base_loop ,
+.Nm event_base_loopexit ,
+.Nm event_base_loopbreak ,
+.Nm event_base_set ,
+.Nm event_base_free ,
 .Nm event_add ,
 .Nm event_del ,
+.Nm event_once ,
+.Nm event_base_once ,
 .Nm event_pending ,
 .Nm event_initialized ,
+.Nm event_priority_init ,
+.Nm event_priority_set ,
 .Nm evtimer_set ,
 .Nm evtimer_add ,
 .Nm evtimer_del ,
@@ -44,22 +57,6 @@
 .Nm signal_del ,
 .Nm signal_pending ,
 .Nm signal_initialized ,
-.Nm event_once ,
-.Nm event_loop ,
-.Nm event_loopexit ,
-.Nm event_loopbreak ,
-.Nm event_asr_run ,
-.Nm event_asr_abort ,
-.Nm event_priority_init ,
-.Nm event_priority_set ,
-.Nm event_base_dispatch ,
-.Nm event_base_loop ,
-.Nm event_base_loopexit ,
-.Nm event_base_loopbreak ,
-.Nm event_base_set ,
-.Nm event_base_once ,
-.Nm event_base_free ,
-.Nm bufferevent_base_set ,
 .Nm bufferevent_new ,
 .Nm bufferevent_free ,
 .Nm bufferevent_write ,
@@ -68,31 +65,68 @@
 .Nm bufferevent_enable ,
 .Nm bufferevent_disable ,
 .Nm bufferevent_settimeout ,
-.Nm bufferevent_setwatermark ,
-.Nm EVBUFFER_INPUT ,
-.Nm EVBUFFER_OUTPUT
+.Nm bufferevent_base_set ,
+.Nm evbuffer_new ,
+.Nm evbuffer_free ,
+.Nm evbuffer_add ,
+.Nm evbuffer_add_buffer ,
+.Nm evbuffer_add_printf ,
+.Nm evbuffer_add_vprintf ,
+.Nm evbuffer_drain ,
+.Nm evbuffer_write ,
+.Nm evbuffer_read ,
+.Nm evbuffer_find ,
+.Nm evbuffer_readline ,
+.Nm event_asr_run ,
+.Nm event_asr_abort
 .Nd execute a function when a specific event occurs
 .Sh SYNOPSIS
-.In sys/time.h
-.In event.h
+.Fd #include <sys/time.h>
+.Fd #include <event.h>
 .Ft "struct event_base *"
 .Fn "event_init" "void"
 .Ft int
 .Fn "event_dispatch" "void"
+.Ft int
+.Fn "event_loop" "int flags"
+.Ft int
+.Fn "event_loopexit" "struct timeval *tv"
+.Ft int
+.Fn "event_loopbreak" "void"
 .Ft void
 .Fn "event_set" "struct event *ev" "int fd" "short event" "void (*fn)(int, short, void *)" "void *arg"
 .Ft int
-.Fn "event_add" "struct event *ev" "const struct timeval *tv"
+.Fn "event_base_dispatch" "struct event_base *base"
+.Ft int
+.Fn "event_base_loop" "struct event_base *base" "int flags"
+.Ft int
+.Fn "event_base_loopexit" "struct event_base *base" "struct timeval *tv"
+.Ft int
+.Fn "event_base_loopbreak" "struct event_base *base"
+.Ft int
+.Fn "event_base_set" "struct event_base *base" "struct event *"
+.Ft void
+.Fn "event_base_free" "struct event_base *base"
+.Ft int
+.Fn "event_add" "struct event *ev" "struct timeval *tv"
 .Ft int
 .Fn "event_del" "struct event *ev"
+.Ft int
+.Fn "event_once" "int fd" "short event" "void (*fn)(int, short, void *)" "void *arg" "struct timeval *tv"
+.Ft int
+.Fn "event_base_once" "struct event_base *base" "int fd" "short event" "void (*fn)(int, short, void *)" "void *arg" "struct timeval *tv"
 .Ft int
 .Fn "event_pending" "struct event *ev" "short event" "struct timeval *tv"
 .Ft int
 .Fn "event_initialized" "struct event *ev"
+.Ft int
+.Fn "event_priority_init" "int npriorities"
+.Ft int
+.Fn "event_priority_set" "struct event *ev" "int priority"
 .Ft void
 .Fn "evtimer_set" "struct event *ev" "void (*fn)(int, short, void *)" "void *arg"
 .Ft void
-.Fn "evtimer_add" "struct event *ev" "const struct timeval *tv"
+.Fn "evtimer_add" "struct event *ev" "struct timeval *"
 .Ft void
 .Fn "evtimer_del" "struct event *ev"
 .Ft int
@@ -102,47 +136,15 @@
 .Ft void
 .Fn "signal_set" "struct event *ev" "int signal" "void (*fn)(int, short, void *)" "void *arg"
 .Ft void
-.Fn "signal_add" "struct event *ev" "const struct timeval *tv"
+.Fn "signal_add" "struct event *ev" "struct timeval *"
 .Ft void
 .Fn "signal_del" "struct event *ev"
 .Ft int
 .Fn "signal_pending" "struct event *ev" "struct timeval *tv"
 .Ft int
 .Fn "signal_initialized" "struct event *ev"
-.Ft int
-.Fn "event_once" "int fd" "short event" "void (*fn)(int, short, void *)" "void *arg" "const struct timeval *tv"
-.Ft int
-.Fn "event_loop" "int flags"
-.Ft int
-.Fn "event_loopexit" "const struct timeval *tv"
-.Ft int
-.Fn "event_loopbreak" "void"
-.Ft "struct event_asr *"
-.Fn event_asr_run "struct asr_query *aq" "void (*fn)(struct asr_result *, void *)" "void *arg"
-.Ft "void"
-.Fn event_asr_abort "struct event_asr *eva"
-.Ft int
-.Fn "event_priority_init" "int npriorities"
-.Ft int
-.Fn "event_priority_set" "struct event *ev" "int priority"
-.Ft int
-.Fn "event_base_dispatch" "struct event_base *base"
-.Ft int
-.Fn "event_base_loop" "struct event_base *base" "int flags"
-.Ft int
-.Fn "event_base_loopexit" "struct event_base *base" "const struct timeval *tv"
-.Ft int
-.Fn "event_base_loopbreak" "struct event_base *base"
-.Ft int
-.Fn "event_base_set" "struct event_base *base" "struct event *ev"
-.Ft int
-.Fn "event_base_once" "struct event_base *base" "int fd" "short event" "void (*fn)(int, short, void *)" "void *arg" "const struct timeval *tv"
-.Ft void
-.Fn "event_base_free" "struct event_base *base"
-.Ft int
-.Fn "bufferevent_base_set" "struct event_base *base" "struct bufferevent *bufev"
 .Ft "struct bufferevent *"
-.Fn "bufferevent_new" "int fd" "evbuffercb readcb" "evbuffercb writecb" "everrorcb errorcb" "void *cbarg"
+.Fn "bufferevent_new" "int fd" "evbuffercb readcb" "evbuffercb writecb" "everrorcb" "void *cbarg"
 .Ft void
 .Fn "bufferevent_free" "struct bufferevent *bufev"
 .Ft int
@@ -157,12 +159,34 @@
 .Fn "bufferevent_disable" "struct bufferevent *bufev" "short event"
 .Ft void
 .Fn "bufferevent_settimeout" "struct bufferevent *bufev" "int timeout_read" "int timeout_write"
+.Ft int
+.Fn "bufferevent_base_set" "struct event_base *base" "struct bufferevent *bufev"
+.Ft "struct evbuffer *"
+.Fn "evbuffer_new" "void"
 .Ft void
-.Fn "bufferevent_setwatermark" "struct bufferevent *bufev" "short events" "size_t lowmark" "size_t highmark"
-.Ft "struct evbuffer *"
-.Fn "EVBUFFER_INPUT" "struct bufferevent *bufev"
-.Ft "struct evbuffer *"
-.Fn "EVBUFFER_OUTPUT" "struct bufferevent *bufev"
+.Fn "evbuffer_free" "struct evbuffer *buf"
+.Ft int
+.Fn "evbuffer_add" "struct evbuffer *buf" "const void *data" "size_t size"
+.Ft int
+.Fn "evbuffer_add_buffer" "struct evbuffer *dst" "struct evbuffer *src"
+.Ft int
+.Fn "evbuffer_add_printf" "struct evbuffer *buf" "const char *fmt" "..."
+.Ft int
+.Fn "evbuffer_add_vprintf" "struct evbuffer *buf" "const char *fmt" "va_list ap"
+.Ft void
+.Fn "evbuffer_drain" "struct evbuffer *buf" "size_t size"
+.Ft int
+.Fn "evbuffer_write" "struct evbuffer *buf" "int fd"
+.Ft int
+.Fn "evbuffer_read" "struct evbuffer *buf" "int fd" "int size"
+.Ft "u_char *"
+.Fn "evbuffer_find" "struct evbuffer *buf" "const u_char *data" "size_t size"
+.Ft "char *"
+.Fn "evbuffer_readline" "struct evbuffer *buf"
+.Ft "struct event_asr *"
+.Fn event_asr_run "struct asr_query *aq" "void (*fn)(struct asr_result *, void *)" "void *"
+.Ft "void"
+.Fn event_asr_abort "struct event_asr *eva"
 .Sh DESCRIPTION
 The
 .Nm event
@@ -425,9 +449,8 @@ By default,
 assigns the middle priority to all events unless their priority
 is explicitly set.
 .Sh THREAD SAFE EVENTS
-The
-.Nm event
-API has experimental support for thread-safe events.
+.Nm Libevent
+has experimental support for thread-safe events.
 When initializing the library via
 .Fn event_init ,
 an event base is returned.
@@ -452,9 +475,8 @@ should be called after preparing a bufferevent with
 should be used to free memory associated with the event base
 when it is no longer needed.
 .Sh BUFFERED EVENTS
-The
-.Nm event
-API provides an abstraction on top of the regular event callbacks.
+.Nm libevent
+provides an abstraction on top of the regular event callbacks.
 This abstraction is called a
 .Va "buffered event" .
 A buffered event provides input and output buffers that get filled
@@ -501,31 +523,6 @@ which is
 by default.
 .Pp
 The
-.Fn bufferevent_setwatermark
-function can set the low and high watermarks
-for read and write events.
-The
-.Fa events
-can be either
-.Va EV_READ ,
-.Va EV_WRITE
-or both.
-When used with
-.Va EV_READ ,
-a bufferevent does not invoke the user read callback
-unless there is at least
-.Fa lowmark
-data in the buffer.
-If the read buffer is beyond
-.Fa highmark ,
-the bufferevent stops reading from the file descriptor.
-When used with
-.Va EV_WRITE ,
-the user write callback is invoked whenever the buffered data
-falls below
-.Fa lowmark .
-.Pp
-The
 .Fn bufferevent_write
 function can be used to write data to the file descriptor.
 The data is appended to the output buffer and written to the descriptor
@@ -541,17 +538,6 @@ If multiple bases are in use,
 .Fn bufferevent_base_set
 must be called before
 enabling the bufferevent for the first time.
-.Pp
-The
-.Fn EVBUFFER_INPUT
-and
-.Fn EVBUFFER_OUTPUT
-macros return a pointer to evbuffer
-.Fa input
-and
-.Fa output
-respectively for the specified bufferevent
-.Fa bufev .
 .Sh ADDITIONAL NOTES
 It is possible to disable support for
 .Va kqueue , poll
@@ -579,7 +565,6 @@ set to indicate the error.
 .Xr poll 2 ,
 .Xr select 2 ,
 .Xr asr_run 3 ,
-.Xr evbuffer_new 3 ,
 .Xr timeout 9
 .Sh HISTORY
 The
@@ -593,3 +578,9 @@ The
 .Nm event
 library was written by
 .An Niels Provos .
+.Sh BUGS
+This documentation is neither complete nor authoritative.
+If you are in doubt about the usage of this API then
+check the source code to find out how it works, write
+up the missing piece of documentation and send it to
+me for inclusion in this man page.

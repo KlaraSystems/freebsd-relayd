@@ -27,18 +27,41 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifdef WIN32
+#include <winsock2.h>
+#include <windows.h>
+#endif
+
+#ifdef HAVE_VASPRINTF
+/* If we have vasprintf, we need to define this before we include stdio.h. */
+#define _GNU_SOURCE
+#endif
+
 #include <sys/types.h>
+
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#endif
+
+#ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
+#endif
 
 #include <assert.h>
 #include <errno.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef HAVE_STDARG_H
 #include <stdarg.h>
+#endif
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 #include "event.h"
 #include "config.h"
@@ -49,7 +72,7 @@ struct evbuffer *
 evbuffer_new(void)
 {
 	struct evbuffer *buffer;
-
+	
 	buffer = calloc(1, sizeof(struct evbuffer));
 
 	return (buffer);
@@ -58,11 +81,12 @@ evbuffer_new(void)
 void
 evbuffer_free(struct evbuffer *buffer)
 {
-	free(buffer->orig_buffer);
+	if (buffer->orig_buffer != NULL)
+		free(buffer->orig_buffer);
 	free(buffer);
 }
 
-/*
+/* 
  * This is a destructive add.  The data from one buffer moves into
  * the other buffer.
  */
@@ -90,7 +114,7 @@ evbuffer_add_buffer(struct evbuffer *outbuf, struct evbuffer *inbuf)
 		SWAP(outbuf, inbuf);
 		SWAP(inbuf, &tmp);
 
-		/*
+		/* 
 		 * Optimization comes with a price; we need to notify the
 		 * buffer if necessary of the changes. oldoff is the amount
 		 * of data that we transfered from inbuf to outbuf
@@ -99,7 +123,7 @@ evbuffer_add_buffer(struct evbuffer *outbuf, struct evbuffer *inbuf)
 			(*inbuf->cb)(inbuf, oldoff, inbuf->off, inbuf->cbarg);
 		if (oldoff && outbuf->cb != NULL)
 			(*outbuf->cb)(outbuf, 0, oldoff, outbuf->cbarg);
-
+		
 		return (0);
 	}
 
@@ -122,17 +146,19 @@ evbuffer_add_vprintf(struct evbuffer *buf, const char *fmt, va_list ap)
 	va_list aq;
 
 	/* make sure that at least some space is available */
-	if (evbuffer_expand(buf, 64) < 0)
-		return (-1);
+	evbuffer_expand(buf, 64);
 	for (;;) {
 		size_t used = buf->misalign + buf->off;
 		buffer = (char *)buf->buffer + buf->off;
 		assert(buf->totallen >= used);
 		space = buf->totallen - used;
 
+#ifndef va_copy
+#define	va_copy(dst, src)	memcpy(&(dst), &(src), sizeof(va_list))
+#endif
 		va_copy(aq, ap);
 
-		sz = vsnprintf(buffer, space, fmt, aq);
+		sz = evutil_vsnprintf(buffer, space, fmt, aq);
 
 		va_end(aq);
 
@@ -175,7 +201,7 @@ evbuffer_remove(struct evbuffer *buf, void *data, size_t datlen)
 
 	memcpy(data, buf->buffer, nread);
 	evbuffer_drain(buf, nread);
-
+	
 	return (nread);
 }
 
@@ -190,7 +216,7 @@ evbuffer_readline(struct evbuffer *buffer)
 	u_char *data = EVBUFFER_DATA(buffer);
 	size_t len = EVBUFFER_LENGTH(buffer);
 	char *line;
-	size_t i;
+	unsigned int i;
 
 	for (i = 0; i < len; i++) {
 		if (data[i] == '\r' || data[i] == '\n')
@@ -201,7 +227,7 @@ evbuffer_readline(struct evbuffer *buffer)
 		return (NULL);
 
 	if ((line = malloc(i + 1)) == NULL) {
-		event_warn("%s: out of memory", __func__);
+		fprintf(stderr, "%s: out of memory\n", __func__);
 		return (NULL);
 	}
 
@@ -234,7 +260,7 @@ evbuffer_readln(struct evbuffer *buffer, size_t *n_read_out,
 	u_char *start_of_eol, *end_of_eol;
 	size_t len = EVBUFFER_LENGTH(buffer);
 	char *line;
-	size_t i, n_to_copy, n_to_drain;
+	unsigned int i, n_to_copy, n_to_drain;
 
 	if (n_read_out)
 		*n_read_out = 0;
@@ -297,7 +323,7 @@ evbuffer_readln(struct evbuffer *buffer, size_t *n_read_out,
 	n_to_drain = end_of_eol - data;
 
 	if ((line = malloc(n_to_copy+1)) == NULL) {
-		event_warn("%s: out of memory", __func__);
+		event_warn("%s: out of memory\n", __func__);
 		return (NULL);
 	}
 
@@ -326,43 +352,30 @@ evbuffer_align(struct evbuffer *buf)
 int
 evbuffer_expand(struct evbuffer *buf, size_t datlen)
 {
-	size_t used = buf->misalign + buf->off;
-
-	assert(buf->totallen >= used);
+	size_t need = buf->misalign + buf->off + datlen;
 
 	/* If we can fit all the data, then we don't have to do anything */
-	if (buf->totallen - used >= datlen)
+	if (buf->totallen >= need)
 		return (0);
-	/* If we would need to overflow to fit this much data, we can't
-	 * do anything. */
-	if (datlen > SIZE_MAX - buf->off)
-		return (-1);
 
 	/*
 	 * If the misalignment fulfills our data needs, we just force an
 	 * alignment to happen.  Afterwards, we have enough space.
 	 */
-	if (buf->totallen - buf->off >= datlen) {
+	if (buf->misalign >= datlen) {
 		evbuffer_align(buf);
 	} else {
 		void *newbuf;
 		size_t length = buf->totallen;
-		size_t need = buf->off + datlen;
 
 		if (length < 256)
 			length = 256;
-		if (need < SIZE_MAX / 2) {
-			while (length < need) {
-				length <<= 1;
-			}
-		} else {
-			length = need;
-		}
+		while (length < need)
+			length <<= 1;
 
 		if (buf->orig_buffer != buf->buffer)
 			evbuffer_align(buf);
-		if ((newbuf = recallocarray(buf->buffer, buf->totallen,
-		    length, 1)) == NULL)
+		if ((newbuf = realloc(buf->buffer, length)) == NULL)
 			return (-1);
 
 		buf->orig_buffer = buf->buffer = newbuf;
@@ -375,10 +388,10 @@ evbuffer_expand(struct evbuffer *buf, size_t datlen)
 int
 evbuffer_add(struct evbuffer *buf, const void *data, size_t datlen)
 {
-	size_t used = buf->misalign + buf->off;
+	size_t need = buf->misalign + buf->off + datlen;
 	size_t oldoff = buf->off;
 
-	if (buf->totallen - used < datlen) {
+	if (buf->totallen < need) {
 		if (evbuffer_expand(buf, datlen) == -1)
 			return (-1);
 	}
@@ -429,7 +442,13 @@ evbuffer_read(struct evbuffer *buf, int fd, int howmuch)
 	size_t oldoff = buf->off;
 	int n = EVBUFFER_MAX_READ;
 
+#if defined(FIONREAD)
+#ifdef WIN32
+	long lng = n;
+	if (ioctlsocket(fd, FIONREAD, &lng) == -1 || (n=lng) <= 0) {
+#else
 	if (ioctl(fd, FIONREAD, &n) == -1 || n <= 0) {
+#endif
 		n = EVBUFFER_MAX_READ;
 	} else if (n > EVBUFFER_MAX_READ && n > howmuch) {
 		/*
@@ -444,6 +463,7 @@ evbuffer_read(struct evbuffer *buf, int fd, int howmuch)
 		if (n < EVBUFFER_MAX_READ)
 			n = EVBUFFER_MAX_READ;
 	}
+#endif	
 	if (howmuch < 0 || howmuch > n)
 		howmuch = n;
 
@@ -454,7 +474,11 @@ evbuffer_read(struct evbuffer *buf, int fd, int howmuch)
 	/* We can append new data at this point */
 	p = buf->buffer + buf->off;
 
+#ifndef WIN32
 	n = read(fd, p, howmuch);
+#else
+	n = recv(fd, p, howmuch, 0);
+#endif
 	if (n == -1)
 		return (-1);
 	if (n == 0)
@@ -474,7 +498,11 @@ evbuffer_write(struct evbuffer *buffer, int fd)
 {
 	int n;
 
+#ifndef WIN32
 	n = write(fd, buffer->buffer, buffer->off);
+#else
+	n = send(fd, buffer->buffer, buffer->off, 0);
+#endif
 	if (n == -1)
 		return (-1);
 	if (n == 0)

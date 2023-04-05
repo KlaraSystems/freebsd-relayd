@@ -26,21 +26,39 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#define _GNU_SOURCE 1
 
 #include <sys/types.h>
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#else
+#include <sys/_libevent_time.h>
+#endif
 #include <sys/queue.h>
 #include <sys/event.h>
-
-#include <assert.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <assert.h>
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+
+/* Some platforms apparently define the udata field of struct kevent as
+ * intptr_t, whereas others define it as void*.  There doesn't seem to be an
+ * easy way to tell them apart via autoconf, so we need to use OS macros. */
+#if defined(HAVE_INTTYPES_H) && !defined(__OpenBSD__) && !defined(__FreeBSD__) && !defined(__darwin__) && !defined(__APPLE__)
+#define PTR_TO_UDATA(x)	((intptr_t)(x))
+#else
+#define PTR_TO_UDATA(x)	(x)
+#endif
 
 #include "event.h"
 #include "event-internal.h"
@@ -85,7 +103,7 @@ kq_init(struct event_base *base)
 	struct kqop *kqueueop;
 
 	/* Disable kqueue when this environment variable is set */
-	if (!issetugid() && getenv("EVENT_NOKQUEUE"))
+	if (evutil_getenv("EVENT_NOKQUEUE"))
 		return (NULL);
 
 	if (!(kqueueop = calloc(1, sizeof(struct kqop))))
@@ -156,29 +174,25 @@ kq_insert(struct kqop *kqop, struct kevent *kev)
 		struct kevent *newchange;
 		struct kevent *newresult;
 
-		if (nevents > INT_MAX / 2) {
-			event_warnx("%s: integer overflow", __func__);
-			return (-1);
-		}
 		nevents *= 2;
 
-		newchange = recallocarray(kqop->changes,
-		    kqop->nevents, nevents, sizeof(struct kevent));
+		newchange = realloc(kqop->changes,
+				    nevents * sizeof(struct kevent));
 		if (newchange == NULL) {
-			event_warn("%s: recallocarray", __func__);
+			event_warn("%s: malloc", __func__);
 			return (-1);
 		}
 		kqop->changes = newchange;
 
-		newresult = recallocarray(kqop->events,
-		    kqop->nevents, nevents, sizeof(struct kevent));
+		newresult = realloc(kqop->events,
+				    nevents * sizeof(struct kevent));
 
 		/*
 		 * If we fail, we don't have to worry about freeing,
 		 * the next realloc will pick it up.
 		 */
 		if (newresult == NULL) {
-			event_warn("%s: recallocarray", __func__);
+			event_warn("%s: malloc", __func__);
 			return (-1);
 		}
 		kqop->events = newresult;
@@ -189,7 +203,7 @@ kq_insert(struct kqop *kqop, struct kevent *kev)
 	memcpy(&kqop->changes[kqop->nchanges++], kev, sizeof(struct kevent));
 
 	event_debug(("%s: fd %d %s%s",
-		__func__, (int)kev->ident,
+		__func__, (int)kev->ident, 
 		kev->filter == EVFILT_READ ? "EVFILT_READ" : "EVFILT_WRITE",
 		kev->flags == EV_DELETE ? " (del)" : ""));
 
@@ -217,12 +231,12 @@ kq_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 		ts_p = &ts;
 	}
 
-	res = kevent(kqop->kq, kqop->nchanges ? changes : NULL, kqop->nchanges,
+	res = kevent(kqop->kq, changes, kqop->nchanges,
 	    events, kqop->nevents, ts_p);
 	kqop->nchanges = 0;
 	if (res == -1) {
 		if (errno != EINTR) {
-			event_warn("kevent");
+                        event_warn("kevent");
 			return (-1);
 		}
 
@@ -298,13 +312,13 @@ kq_add(void *arg, struct event *ev)
 		assert(nsignal >= 0 && nsignal < NSIG);
 		if (TAILQ_EMPTY(&kqop->evsigevents[nsignal])) {
 			struct timespec timeout = { 0, 0 };
-
+			
 			memset(&kev, 0, sizeof(kev));
 			kev.ident = nsignal;
 			kev.filter = EVFILT_SIGNAL;
 			kev.flags = EV_ADD;
-			kev.udata = &kqop->evsigevents[nsignal];
-
+			kev.udata = PTR_TO_UDATA(&kqop->evsigevents[nsignal]);
+			
 			/* Be ready for the signal if it is sent any
 			 * time between now and the next call to
 			 * kq_dispatch. */
@@ -323,16 +337,18 @@ kq_add(void *arg, struct event *ev)
 	}
 
 	if (ev->ev_events & EV_READ) {
-		memset(&kev, 0, sizeof(kev));
+ 		memset(&kev, 0, sizeof(kev));
 		kev.ident = ev->ev_fd;
 		kev.filter = EVFILT_READ;
+#ifdef NOTE_EOF
 		/* Make it behave like select() and poll() */
 		kev.fflags = NOTE_EOF;
+#endif
 		kev.flags = EV_ADD;
 		if (!(ev->ev_events & EV_PERSIST))
 			kev.flags |= EV_ONESHOT;
-		kev.udata = ev;
-
+		kev.udata = PTR_TO_UDATA(ev);
+		
 		if (kq_insert(kqop, &kev) == -1)
 			return (-1);
 
@@ -340,14 +356,14 @@ kq_add(void *arg, struct event *ev)
 	}
 
 	if (ev->ev_events & EV_WRITE) {
-		memset(&kev, 0, sizeof(kev));
+ 		memset(&kev, 0, sizeof(kev));
 		kev.ident = ev->ev_fd;
 		kev.filter = EVFILT_WRITE;
 		kev.flags = EV_ADD;
 		if (!(ev->ev_events & EV_PERSIST))
 			kev.flags |= EV_ONESHOT;
-		kev.udata = ev;
-
+		kev.udata = PTR_TO_UDATA(ev);
+		
 		if (kq_insert(kqop, &kev) == -1)
 			return (-1);
 
@@ -377,7 +393,7 @@ kq_del(void *arg, struct event *ev)
 			kev.ident = nsignal;
 			kev.filter = EVFILT_SIGNAL;
 			kev.flags = EV_DELETE;
-
+		
 			/* Because we insert signal events
 			 * immediately, we need to delete them
 			 * immediately, too */
@@ -394,11 +410,11 @@ kq_del(void *arg, struct event *ev)
 	}
 
 	if (ev->ev_events & EV_READ) {
-		memset(&kev, 0, sizeof(kev));
+ 		memset(&kev, 0, sizeof(kev));
 		kev.ident = ev->ev_fd;
 		kev.filter = EVFILT_READ;
 		kev.flags = EV_DELETE;
-
+		
 		if (kq_insert(kqop, &kev) == -1)
 			return (-1);
 
@@ -406,11 +422,11 @@ kq_del(void *arg, struct event *ev)
 	}
 
 	if (ev->ev_events & EV_WRITE) {
-		memset(&kev, 0, sizeof(kev));
+ 		memset(&kev, 0, sizeof(kev));
 		kev.ident = ev->ev_fd;
 		kev.filter = EVFILT_WRITE;
 		kev.flags = EV_DELETE;
-
+		
 		if (kq_insert(kqop, &kev) == -1)
 			return (-1);
 
@@ -427,8 +443,10 @@ kq_dealloc(struct event_base *base, void *arg)
 
 	evsignal_dealloc(base);
 
-	free(kqop->changes);
-	free(kqop->events);
+	if (kqop->changes)
+		free(kqop->changes);
+	if (kqop->events)
+		free(kqop->events);
 	if (kqop->kq >= 0 && kqop->pid == getpid())
 		close(kqop->kq);
 

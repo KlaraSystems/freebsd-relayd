@@ -1,5 +1,3 @@
-/*	$OpenBSD: event-internal.h,v 1.8 2014/10/15 22:34:44 bluhm Exp $	*/
-
 /*
  * Copyright (c) 2000-2004 Niels Provos <provos@citi.umich.edu>
  * All rights reserved.
@@ -71,6 +69,23 @@ struct event_base {
 
 	struct timeval tv_cache;
 };
+
+/* Internal use only: Functions that might be missing from <sys/queue.h> */
+#ifndef HAVE_TAILQFOREACH
+#define	TAILQ_FIRST(head)		((head)->tqh_first)
+#define	TAILQ_END(head)			NULL
+#define	TAILQ_NEXT(elm, field)		((elm)->field.tqe_next)
+#define TAILQ_FOREACH(var, head, field)					\
+	for((var) = TAILQ_FIRST(head);					\
+	    (var) != TAILQ_END(head);					\
+	    (var) = TAILQ_NEXT(var, field))
+#define	TAILQ_INSERT_BEFORE(listelm, elm, field) do {			\
+	(elm)->field.tqe_prev = (listelm)->field.tqe_prev;		\
+	(elm)->field.tqe_next = (listelm);				\
+	*(listelm)->field.tqe_prev = (elm);				\
+	(listelm)->field.tqe_prev = &(elm)->field.tqe_next;		\
+} while (0)
+#endif /* TAILQ_FOREACH */
 
 int _evsignal_set_handler(struct event_base *base, int evsignal,
 			  void (*fn)(int));
