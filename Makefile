@@ -113,4 +113,7 @@ ${CROSS_TARGETS}:
 	build regression-tests includes beforeinstall afterinstall \
 	all depend
 
+# BEGIN FreeBSD-relayd
+.include <freebsd.mk>
+# END FreeBSD-relayd
 .include <bsd.subdir.mk>
