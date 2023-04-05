@@ -13,6 +13,7 @@ LDADD=		-levent -lssl -lcrypto -lutil
 DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
 # BEGIN FreeBSD-relayd
+CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
 # END FreeBSD-relayd
