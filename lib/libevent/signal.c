@@ -50,6 +50,13 @@ struct event_base *evsignal_base = NULL;
 
 static void evsignal_handler(int sig);
 
+#ifdef WIN32
+#define error_is_eagain(err)			\
+	((err) == EAGAIN || (err) == WSAEWOULDBLOCK)
+#else
+#define error_is_eagain(err) ((err) == EAGAIN)
+#endif
+
 /* Callback for when the signal handler write a byte to our signaling socket */
 static void
 evsignal_cb(int fd, short what, void *arg)
@@ -59,10 +66,20 @@ evsignal_cb(int fd, short what, void *arg)
 
 	n = recv(fd, signals, sizeof(signals), 0);
 	if (n == -1) {
-		if (errno != EAGAIN)
+		int err = EVUTIL_SOCKET_ERROR();
+		if (! error_is_eagain(err))
 			event_err(1, "%s: read", __func__);
 	}
 }
+
+#ifdef HAVE_SETFD
+#define FD_CLOSEONEXEC(x) do { \
+        if (fcntl(x, F_SETFD, 1) == -1) \
+                event_warn("fcntl(%d, F_SETFD)", x); \
+} while (0)
+#else
+#define FD_CLOSEONEXEC(x)
+#endif
 
 int
 evsignal_init(struct event_base *base)
@@ -87,6 +104,9 @@ evsignal_init(struct event_base *base)
 	/* initialize the queues for all events */
 	for (i = 0; i < NSIG; ++i)
 		TAILQ_INIT(&base->sig.evsigevents[i]);
+
+        evutil_make_socket_nonblocking(base->sig.ev_signal_pair[0]);
+        evutil_make_socket_nonblocking(base->sig.ev_signal_pair[1]);
 
 	event_set(&base->sig.ev_signal, base->sig.ev_signal_pair[1],
 		EV_READ | EV_PERSIST, evsignal_cb, &base->sig.ev_signal);
@@ -291,7 +311,7 @@ evsignal_dealloc(struct event_base *base)
 	}
 	base->sig.sh_old_max = 0;
 
-	/* per index frees are handled in evsignal_del() */
+	/* per index frees are handled in evsig_del() */
 	if (base->sig.sh_old) {
 		free(base->sig.sh_old);
 		base->sig.sh_old = NULL;

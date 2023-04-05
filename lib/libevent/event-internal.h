@@ -33,6 +33,7 @@
 extern "C" {
 #endif
 
+#include "config.h"
 #include "min_heap.h"
 #include "evsignal.h"
 

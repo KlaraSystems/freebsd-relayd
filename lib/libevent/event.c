@@ -40,8 +40,6 @@
 #include <string.h>
 #include <assert.h>
 #include <time.h>
-#include <netdb.h>
-#include <asr.h>
 
 #include "event.h"
 #include "event-internal.h"
@@ -215,7 +213,7 @@ event_reinit(struct event_base *base)
 #if 0
 	/* Right now, reinit always takes effect, since even if the
 	   backend doesn't require it, the signal socketpair code does.
-	*/
+	 */
 	/* check if this event mechanism requires reinit */
 	if (!evsel->need_reinit)
 		return (0);
@@ -723,8 +721,8 @@ event_add(struct event *ev, const struct timeval *tv)
 		timeradd(&now, tv, &ev->ev_timeout);
 
 		event_debug((
-			 "event_add: timeout in %lld seconds, call %p",
-			 (long long)tv->tv_sec, ev->ev_callback));
+			 "event_add: timeout in %ld seconds, call %p",
+			 tv->tv_sec, ev->ev_callback));
 
 		event_queue_insert(base, ev, EVLIST_TIMEOUT);
 	}
@@ -812,7 +810,7 @@ timeout_next(struct event_base *base, struct timeval **tv_p)
 	assert(tv->tv_sec >= 0);
 	assert(tv->tv_usec >= 0);
 
-	event_debug(("timeout_next: in %lld seconds", (long long)tv->tv_sec));
+	event_debug(("timeout_next: in %ld seconds", tv->tv_sec));
 	return (0);
 }
 
@@ -907,7 +905,7 @@ event_queue_insert(struct event_base *base, struct event *ev, int queue)
 const char *
 event_get_version(void)
 {
-	return (_EVENT_VERSION);
+	return (VERSION);
 }
 
 /*
@@ -919,66 +917,4 @@ const char *
 event_get_method(void)
 {
 	return (current_base->evsel->name);
-}
-
-
-/*
- * Libevent glue for ASR.
- */
-struct event_asr {
-	struct event	 ev;
-	struct asr_query *async;
-	void		(*cb)(struct asr_result *, void *);
-	void		*arg;
-};
-
-static void
-event_asr_dispatch(int fd __attribute__((__unused__)),
-    short ev __attribute__((__unused__)), void *arg)
-{
-	struct event_asr	*eva = arg;
-	struct asr_result	 ar;
-	struct timeval		 tv;
-
-	event_del(&eva->ev);
-
-	if (asr_run(eva->async, &ar)) {
-		eva->cb(&ar, eva->arg);
-		free(eva);
-	} else {
-		event_set(&eva->ev, ar.ar_fd,
-		    ar.ar_cond == ASR_WANT_READ ? EV_READ : EV_WRITE,
-		    event_asr_dispatch, eva);
-		tv.tv_sec = ar.ar_timeout / 1000;
-		tv.tv_usec = (ar.ar_timeout % 1000) * 1000;
-		event_add(&eva->ev, &tv);
-	}
-}
-
-struct event_asr *
-event_asr_run(struct asr_query *async, void (*cb)(struct asr_result *, void *),
-    void *arg)
-{
-	struct event_asr *eva;
-	struct timeval tv;
-
-	eva = calloc(1, sizeof *eva);
-	if (eva == NULL)
-		return (NULL);
-	eva->async = async;
-	eva->cb = cb;
-	eva->arg = arg;
-	tv.tv_sec = 0;
-	tv.tv_usec = 0;
-	evtimer_set(&eva->ev, event_asr_dispatch, eva);
-	evtimer_add(&eva->ev, &tv);
-	return (eva);
-}
-
-void
-event_asr_abort(struct event_asr *eva)
-{
-	asr_abort(eva->async);
-	event_del(&eva->ev);
-	free(eva);
 }

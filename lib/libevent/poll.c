@@ -157,7 +157,7 @@ poll_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 	if (res == 0 || nfds == 0)
 		return (0);
 
-	i = arc4random_uniform(nfds);
+	i = random() % nfds;
 	for (j = 0; j < nfds; j++) {
 		struct event *r_ev = NULL, *w_ev = NULL;
 		int what;

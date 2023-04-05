@@ -47,6 +47,17 @@
 #include "evsignal.h"
 #include "log.h"
 
+#ifndef howmany
+#define        howmany(x, y)   (((x)+((y)-1))/(y))
+#endif
+
+#ifndef _EVENT_HAVE_FD_MASK
+/* This type is mandatory, but Android doesn't define it. */
+#undef NFDBITS
+#define NFDBITS (sizeof(long)*8)
+typedef unsigned long fd_mask;
+#endif
+
 struct selectop {
 	int event_fds;		/* Highest fd in fd set */
 	size_t event_fdsz;
@@ -155,7 +166,7 @@ select_dispatch(struct event_base *base, void *arg, struct timeval *tv)
 	event_debug(("%s: select reports %d", __func__, res));
 
 	check_selectop(sop);
-	i = arc4random_uniform(sop->event_fds + 1);
+	i = random() % (sop->event_fds+1);
 	for (j = 0; j <= sop->event_fds; ++j) {
 		struct event *r_ev = NULL, *w_ev = NULL;
 		if (++i >= sop->event_fds+1)
