@@ -10,6 +10,7 @@ SRCS+=		agentx.c ca.c carp.c check_icmp.c check_script.c \
 # BEGIN FreeBSD-relayd
 # Currently, relayd does not support SNMP traps on FreeBSD.
 SRCS:=		${SRCS:Nagentx.c}
+SRCS:=		${SRCS:Nsnmp.c}
 # Currently, relayd does not support CARP demote on FreeBSD.
 SRCS:=		${SRCS:Ncarp.c}
 # Currently, relayd does not support modifying routing tables on FreeBSD.
