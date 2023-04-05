@@ -12,6 +12,8 @@ SRCS+=		agentx.c ca.c carp.c check_icmp.c check_script.c \
 SRCS:=		${SRCS:Nagentx.c}
 # Currently, relayd does not support CARP demote on FreeBSD.
 SRCS:=		${SRCS:Ncarp.c}
+# Currently, relayd does not support modifying routing tables on FreeBSD.
+SRCS:=		${SRCS:Npfe_route.c}
 # END FreeBSD-relayd
 MAN=		relayd.8 relayd.conf.5
 
