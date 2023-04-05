@@ -5,9 +5,10 @@
 PROG=		relayctl
 SRCS=		log.c util.c relayctl.c parser.c
 # BEGIN FreeBSD-relayd
-# XXX: For some reason, bmake is unable to handle the log.o file from relayd
+# XXX: For some reason, bmake is unable to handle log.o and util.o from relayd
 # correctly. Work around that.
 SRCS:=		${SRCS:Nlog.c}
+SRCS:=		${SRCS:Nutil.c}
 # END FreeBSD-relayd
 
 MAN=		relayctl.8
@@ -15,10 +16,12 @@ MAN=		relayctl.8
 LDADD=		-lutil
 DPADD=		${LIBUTIL}
 # BEGIN FreeBSD-relayd
-# XXX: For some reason, bmake is unable to handle the log.o file from relayd
+# XXX: For some reason, bmake is unable to handle log.o and util.o from relayd
 # correctly. Work around that.
 LDADD+=		${.CURDIR}/../relayd/log.o
 DPADD+=		${.CURDIR}/../relayd/log.o
+LDADD+=		${.CURDIR}/../relayd/util.o
+DPADD+=		${.CURDIR}/../relayd/util.o
 # Pass the right libutil implementation.
 LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
 LDADD:=		${LDADD:N-lutil} ${LIBUTIL}
