@@ -970,7 +970,7 @@ struct control_sock {
 };
 TAILQ_HEAD(control_socks, control_sock);
 
-extern struct control_state {
+struct control_state {
 	struct event	 ev;
 	int		 fd;
 };
