@@ -19,6 +19,12 @@ SRCS:=		${SRCS:Npfe_route.c}
 MAN=		relayd.8 relayd.conf.5
 
 LDADD=		-levent -lssl -lcrypto -lutil
+# BEGIN FreeBSD-relayd
+# Pass the right LibreSSL library.
+LDADD:=		${LDALL:N-lssl} ${LIBSSL}
+# Pass the right libcrypto implementation.
+LDADD:=		${LDALL:N-lcrypto} ${LIBCRYPTO}
+# END FreeBSD-relayd
 DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
 # BEGIN FreeBSD-relayd
