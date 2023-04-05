@@ -6,4 +6,8 @@ SUBDIR=	csu libarch libc libcrypto libcurses libedit libevent libexpat \
 	libocurses libossaudio libpanel libpcap libressl librthread librpcsvc \
 	libskey libsndio libsqlite3 libssl libusbhid libutil liby libz
 
+# BEGIN FreeBSD-relayd
+SUBDIR=	libevent libutil
+# END FreeBSD-relayd
+
 .include <bsd.subdir.mk>

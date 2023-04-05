@@ -24,4 +24,8 @@ SUBDIR=	ac accton acpidump adduser amd apm apmd arp \
 SUBDIR+=ypbind ypldap yppoll ypset ypserv
 .endif
 
+# BEGIN FreeBSD-relayd
+SUBDIR=	relayd relayctl
+# END FreeBSD-relayd
+
 .include <bsd.subdir.mk>
