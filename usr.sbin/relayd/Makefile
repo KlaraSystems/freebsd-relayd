@@ -30,4 +30,5 @@ CFLAGS+=	-Wshadow -Wpointer-arith
 CFLAGS+=	-Wsign-compare
 CLEANFILES+=	y.tab.h
 
+.include <freebsd.mk>
 .include <bsd.prog.mk>
