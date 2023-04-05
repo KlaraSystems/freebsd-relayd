@@ -4,12 +4,23 @@
 
 PROG=		relayctl
 SRCS=		log.c util.c relayctl.c parser.c
+# BEGIN FreeBSD-relayd
+# XXX: For some reason, bmake is unable to handle the log.o file from relayd
+# correctly. Work around that.
+SRCS:=		${SRCS:Nlog.c}
+# END FreeBSD-relayd
 
 MAN=		relayctl.8
 
 LDADD=		-lutil
 DPADD=		${LIBUTIL}
-CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../relayd
+# BEGIN FreeBSD-relayd
+# XXX: For some reason, bmake is unable to handle the log.o file from relayd
+# correctly. Work around that.
+LDADD+=		${.CURDIR}/../relayd/log.o
+DPADD+=		${.CURDIR}/../relayd/log.o
+# END FreeBSD-relayd
+CFLAGS+=	-Wall -Werror -I${.CURDIR} -I${.CURDIR}/../relayd
 # BEGIN FreeBSD-relayd
 CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
