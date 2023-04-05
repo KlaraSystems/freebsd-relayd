@@ -22,6 +22,7 @@ CFLAGS+=	-Wall -I${.CURDIR}
 # BEGIN FreeBSD-relayd
 # Pass the right LibreSSL library.
 LDADD:=		${LDADD:N-lssl} ${LIBSSL}
+LDADD:=		${LDADD:N-ltls} ${LIBTLS}
 # Pass the right libcrypto implementation.
 LDADD:=		${LDADD:N-lcrypto} ${LIBCRYPTO}
 # Pass the right libevent implementation.
