@@ -49,6 +49,7 @@
 #ifdef __FreeBSD__
 #include "siphash.h"
 #include <sys/endian.h>
+#include <string.h>
 #else
 #include <crypto/siphash.h>
 #endif
