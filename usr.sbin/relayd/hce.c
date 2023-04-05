@@ -70,8 +70,10 @@ hce_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 	/* Allow maximum available sockets for TCP checks */
 	socket_rlimit(-1);
 
+#ifndef __FreeBSD__
 	if (pledge("stdio recvfd inet", NULL) == -1)
 		fatal("%s: pledge", __func__);
+#endif
 }
 
 void

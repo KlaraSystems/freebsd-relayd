@@ -17,6 +17,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __FreeBSD__
+#include <sys/queue.h>
+#endif
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/uio.h>

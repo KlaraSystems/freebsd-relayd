@@ -21,6 +21,12 @@
 #ifndef RELAYD_H
 #define RELAYD_H
 
+#ifdef IN_MAIN
+#define EXTERN
+#else
+#define EXTERN extern
+#endif
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/queue.h>
@@ -28,24 +34,29 @@
 #include <sys/time.h>
 #include <sys/un.h>
 
+#ifdef __FreeBSD__
+#include <sys/param.h>     /* MAXHOSTNAMELEN */
+#endif
+
 #include <net/if.h>
 #include <net/pfvar.h>
-
-#include <stdarg.h>
-#include <limits.h>
-#include <siphash.h>
-#include <event.h>
-#include <imsg.h>
-
-#include <openssl/ssl.h>
-#include <tls.h>
-
+#ifdef __FreeBSD__
+#include <sys/queue.h>
 #ifndef nitems
 #define	nitems(_a)	(sizeof((_a)) / sizeof((_a)[0]))
 #endif
 #endif
+#include <stdarg.h>
 #include <limits.h>
+#ifdef __FreeBSD__
+#include "siphash.h"
+#else
+#include <siphash.h>
+#endif
+#include <event.h>
 #include <imsg.h>
+#include <openssl/ssl.h>
+#include <tls.h>
 
 #ifdef __FreeBSD__
 #define	CONF_FILE		"/usr/local/etc/relayd.conf"
@@ -178,7 +189,11 @@ struct ctl_script {
 	objid_t		 host;
 	int		 retval;
 	struct timeval	 timeout;
+#ifdef __FreeBSD__
+	char		 name[MAXHOSTNAMELEN];
+#else
 	char		 name[HOST_NAME_MAX+1];
+#endif
 	char		 path[PATH_MAX];
 };
 
@@ -445,7 +460,11 @@ struct host_config {
 	objid_t			 parentid;
 	objid_t			 tableid;
 	int			 retry;
+#ifdef __FreeBSD__
+	char			 name[MAXHOSTNAMELEN];
+#else
 	char			 name[HOST_NAME_MAX+1];
+#endif
 	struct sockaddr_storage	 ss;
 	int			 ttl;
 	int			 priority;
@@ -825,7 +844,11 @@ struct relay_config {
 	objid_t			 id;
 	u_int32_t		 flags;
 	objid_t			 proto;
+#ifdef __FreeBSD__
+	char			 name[MAXHOSTNAMELEN];
+#else
 	char			 name[HOST_NAME_MAX+1];
+#endif
 	in_port_t		 port;
 	in_port_t		 dstport;
 	int			 dstretry;
@@ -903,7 +926,11 @@ TAILQ_HEAD(netroutelist, netroute);
 struct router_config {
 	objid_t			 id;
 	u_int32_t		 flags;
+#ifdef __FreeBSD__
+	char			 name[MAXHOSTNAMELEN];
+#else
 	char			 name[HOST_NAME_MAX+1];
+#endif
 	char			 label[RT_LABEL_SIZE];
 	int			 nroutes;
 	objid_t			 gwtable;
@@ -943,12 +970,10 @@ struct control_sock {
 };
 TAILQ_HEAD(control_socks, control_sock);
 
-extern struct {
+extern struct control_state {
 	struct event	 ev;
 	int		 fd;
 };
-
-EXTERN struct control_state control_state;
 
 struct imsgev {
 	struct imsgbuf		 ibuf;
@@ -1023,6 +1048,7 @@ enum imsg_type {
 	IMSG_SCRIPT,
 #ifndef __FreeBSD__
 	IMSG_AGENTXSOCK,
+#endif
 	IMSG_BINDANY,
 #ifndef __FreeBSD__
 	IMSG_RTMSG,		/* from pfe to parent */
@@ -1056,6 +1082,7 @@ enum privsep_procid {
 	PROC_CA,
 	PROC_MAX
 };
+
 extern enum privsep_procid privsep_process;
 
 /* Attach the control socket to the following process */
@@ -1125,8 +1152,14 @@ struct relayd_config {
 struct pfdata {
 	int			 dev;
 	struct pf_anchor	*anchor;
+#ifndef __FreeBSD__
 	struct pfioc_trans	 pft;
 	struct pfioc_trans_e	 pfte;
+#else
+   /* Old pf */
+	struct pfioc_trans   pft[PF_RULESET_MAX];
+	struct pfioc_trans_e     pfte[PF_RULESET_MAX];
+#endif
 	u_int8_t		 pfused;
 };
 
@@ -1146,8 +1179,6 @@ struct relayd {
 	int			 sc_routercount;
 	int			 sc_routecount;
 #endif
-	struct timeval		 sc_interval;
-	struct timeval		 sc_timeout;
 	struct table		 sc_empty_table;
 	struct protocol		 sc_proto_default;
 	struct event		 sc_ev;

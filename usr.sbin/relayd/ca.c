@@ -73,8 +73,10 @@ ca(struct privsep *ps, struct privsep_proc *p)
 void
 ca_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 {
+#ifndef __FreeBSD__
 	if (pledge("stdio recvfd", NULL) == -1)
 		fatal("pledge");
+#endif
 
 	if (config_init(ps->ps_env) == -1)
 		fatal("failed to initialize configuration");

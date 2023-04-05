@@ -80,15 +80,15 @@ int		 relay_tls_ctx_create(struct relay *);
 void		 relay_tls_transaction(struct rsession *,
 		    struct ctl_relay_event *);
 void		 relay_tls_handshake(int, short, void *);
-void		 relay_tls_connected(struct ctl_relay_event *);
-void		 relay_tls_readcb(int, short, void *);
-void		 relay_tls_writecb(int, short, void *);
-
 #ifndef __FreeBSD__ /* file descriptor accounting */
 void		 relay_connect_retry(int, short, void *);
 #endif
 void		 relay_connect_state(struct rsession *,
 		    struct ctl_relay_event *, enum relay_state);
+
+void		 relay_tls_connected(struct ctl_relay_event *);
+void		 relay_tls_readcb(int, short, void *);
+void		 relay_tls_writecb(int, short, void *);
 
 extern void	 bufferevent_read_pressure_cb(struct evbuffer *, size_t,
 		    size_t, void *);
@@ -356,8 +356,10 @@ relay_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 	/* Unlimited file descriptors (use system limits) */
 	socket_rlimit(-1);
 
+#ifndef __FreeBSD__
 	if (pledge("stdio recvfd inet", NULL) == -1)
 		fatal("pledge");
+#endif
 
 	/* Schedule statistics timer */
 	evtimer_set(&env->sc_statev, relay_statistics, ps);
@@ -611,11 +613,13 @@ relay_socket(struct sockaddr_storage *ss, in_port_t port,
 			    &val, sizeof(val)) == -1)
 				goto bad;
 			break;
+#ifndef __FreeBSD__  /* IPv6 GTSM (RFC 5082) support missing */
 		case AF_INET6:
 			if (setsockopt(s, IPPROTO_IPV6, IPV6_MINHOPCOUNT,
 			    &val, sizeof(val)) == -1)
 				goto bad;
 			break;
+#endif
 		}
 	}
 
@@ -803,6 +807,7 @@ relay_connected(int fd, short sig, void *arg)
 #ifndef __FreeBSD__
 	if (relay_splice(&con->se_out) == -1)
 		relay_close(con, strerror(errno), 1);
+#endif
 }
 
 void
@@ -872,6 +877,7 @@ relay_write(struct bufferevent *bev, void *arg)
 	if (relay_splice(cre->dst) == -1)
 		goto fail;
 #endif
+
 	return;
  done:
 	relay_close(con, "last write (done)", 0);
@@ -931,12 +937,6 @@ relay_read(struct bufferevent *bev, void *arg)
 	relay_close(con, strerror(errno), 1);
 }
 
-/*
- * Splice sockets from cre to cre->dst if applicable.  Returns:
- * -1 socket splicing has failed
- * 0 socket splicing is currently not possible
- * 1 socket splicing was successful
- */
 #ifndef __FreeBSD__
 int
 relay_splice(struct ctl_relay_event *cre)
@@ -987,9 +987,15 @@ relay_splice(struct ctl_relay_event *cre)
 	DPRINTF("%s: session %d: splice dir %d, maximum %lld, successful",
 	    __func__, con->se_id, cre->dir, cre->toread);
 
-	return (1);
+	return (0);
 }
 
+/*
+ * Splice sockets from cre to cre->dst if applicable.  Returns:
+ * -1 socket splicing has failed
+ * 0 socket splicing is currently not possible
+ * 1 socket splicing was successful
+ */
 int
 relay_splicelen(struct ctl_relay_event *cre)
 {
@@ -1031,7 +1037,7 @@ relay_spliceadjust(struct ctl_relay_event *cre)
 		cre->toread -= cre->splicelen;
 	cre->splicelen = -1;
 
-	return (0);
+	return (1);
 }
 #endif
 
@@ -1064,7 +1070,7 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 			relay_close(con, "buffer event timeout", 1);
 		}
 #else
-		relay_close(con, "buffer event timeout");
+		relay_close(con, "buffer event timeout", 1);
 #endif
 		return;
 	}
@@ -1090,7 +1096,7 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 		if (relay_splice(cre) == -1)
 			goto fail;
 #else
-		relay_close(con, "buffer event timed out");
+		relay_close(con, "buffer event timed out", 1);
 #endif
 		return;
 	}
@@ -1100,7 +1106,7 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 			goto fail;
 		bufferevent_enable(cre->bev, EV_READ);
 #else
-		relay_close(con, "buffer event error");
+		relay_close(con, "buffer event error", 1);
 #endif
 		return;
 	}
@@ -1517,6 +1523,17 @@ relay_session(struct rsession *con)
 }
 
 void
+relay_connect_state(struct rsession *con, struct ctl_relay_event *cre,
+    enum relay_state new)
+{
+	DPRINTF("%s: session %d: %s state %s -> %s",
+	    __func__, con->se_id,
+	    cre->dir == RELAY_DIR_REQUEST ? "accept" : "connect",
+	    relay_state(cre->state), relay_state(new));
+	cre->state = new;
+}
+
+void
 relay_bindanyreq(struct rsession *con, in_port_t port, int proto)
 {
 	struct privsep		*ps = env->sc_ps;
@@ -1550,17 +1567,6 @@ relay_bindany(int fd, short event, void *arg)
 	}
 	if (relay_connect(con) == -1)
 		relay_close(con, "session failed", 1);
-}
-
-void
-relay_connect_state(struct rsession *con, struct ctl_relay_event *cre,
-    enum relay_state new)
-{
-	DPRINTF("%s: session %d: %s state %s -> %s",
-	    __func__, con->se_id,
-	    cre->dir == RELAY_DIR_REQUEST ? "accept" : "connect",
-	    relay_state(cre->state), relay_state(new));
-	cre->state = new;
 }
 
 #ifndef __FreeBSD__ /* file descriptor accounting */
@@ -1674,13 +1680,13 @@ relay_connect(struct rsession *con)
 #endif
 	int		 bnds = -1, ret;
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	/* relay_connect should only be called once per relay */
 	if (con->se_out.state == STATE_CONNECTED) {
 		log_debug("%s: connect already called once", __func__);
 		return (0);
 	}
 
-#ifndef __FreeBSD__ /* file descriptor accounting */
 	/* Connection is already established but session not active */
 	if ((rlay->rl_conf.flags & F_TLSINSPECT) &&
 	    con->se_out.state == STATE_PRECONNECT) {
@@ -1780,8 +1786,8 @@ relay_connect(struct rsession *con)
 #endif
 	}
 
-	relay_connect_state(con, &con->se_out, STATE_CONNECTED);
 #ifndef __FreeBSD__ /* file descriptor accounting */
+	relay_connect_state(con, &con->se_out, STATE_CONNECTED);
 	relay_inflight--;
 	DPRINTF("%s: inflight decremented, now %d",__func__,
 	    relay_inflight);
@@ -1832,11 +1838,7 @@ relay_close(struct rsession *con, const char *msg, int err)
 			log_warn("relay %s, "
 			    "session %d (%d active), %s, %s -> %s:%d, "
 			    "%s%s%s", rlay->rl_conf.name, con->se_id,
-#ifndef __FreeBSD__
 			    relay_sessions, con->se_tag != 0 ?
-#else
-			    (int)relay_sessions, con->se_tag != 0 ?
-#endif
 			    tag_id2name(con->se_tag) : "0", ibuf, obuf,
 			    ntohs(con->se_out.port), msg, ptr == NULL ?
 			    "" : ",", ptr == NULL ? "" : ptr);
@@ -2144,6 +2146,7 @@ relay_tls_ctx_create_proto(struct protocol *proto, struct tls_config *tls_cfg)
 {
 	uint32_t		 protocols = 0;
 
+
 	/* Set the allowed SSL protocols */
 	if (proto->tlsflags & TLSFLAG_TLSV1_0)
 		protocols |= TLS_PROTOCOL_TLSv1_0;
@@ -2449,6 +2452,7 @@ relay_tls_transaction(struct rsession *con, struct ctl_relay_event *cre)
 		}
 		flag = EV_WRITE;
 	}
+
 
 	log_debug("%s: session %d: scheduling on %s", __func__, con->se_id,
 	    (flag == EV_READ) ? "EV_READ" : "EV_WRITE");

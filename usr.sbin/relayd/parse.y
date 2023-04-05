@@ -35,19 +35,24 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <arpa/nameser.h>
 #include <net/if.h>
 #include <net/pfvar.h>
-// FreeBSD #include <net/route.h>
+#include <net/route.h>
 
+#ifndef __FreeBSD__
 #include <agentx.h>
+#endif
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <err.h>
+#ifdef __FreeBSD__
+#include <sys/endian.h>
+#else
 #include <endian.h>
+#endif
 #include <errno.h>
 #include <limits.h>
 #include <netdb.h>
@@ -111,7 +116,6 @@ objid_t			 last_proto_id = 0;
 objid_t			 last_rt_id = 0;
 objid_t			 last_nr_id = 0;
 */
-objid_t			 last_key_id = 0;
 
 static struct rdr	*rdr = NULL;
 static struct table	*table = NULL;
@@ -164,7 +168,11 @@ typedef struct {
 		struct {
 			struct sockaddr_storage	 ss;
 			int			 prefixlen;
+#ifdef __FreeBSD__
+			char			 name[MAXHOSTNAMELEN];
+#else
 			char			 name[HOST_NAME_MAX+1];
+#endif
 		}			 addr;
 		struct {
 			enum digest_type type;
@@ -177,38 +185,40 @@ typedef struct {
 %}
 
 /* OpenBSD:
-%token	AGENTX APPEND BACKLOG BACKUP BINARY BUFFER CA CACHE SET CHECK CIPHERS
-%token	CODE COOKIE DEMOTE DIGEST DISABLE ERROR EXPECT PASS BLOCK EXTERNAL
-%token	FILENAME FORWARD FROM HASH HEADER HEADERLEN HOST HTTP ICMP INCLUDE INET
-%token	INET6 INTERFACE INTERVAL IP KEYPAIR LABEL LISTEN VALUE LOADBALANCE LOG
-%token	LOOKUP METHOD MODE NAT NO DESTINATION NODELAY NOTHING ON PARENT PATH
-%token	PFTAG PORT PREFORK PRIORITY PROTO QUERYSTR REAL REDIRECT RELAY REMOVE
-%token	REQUEST RESPONSE RETRY QUICK RETURN ROUNDROBIN ROUTE SACK SCRIPT SEND
-%token	SESSION SOCKET SPLICE SSL STICKYADDR STRIP STYLE TABLE TAG TAGGED TCP
-%token	TIMEOUT TLS TO ROUTER RTLABEL TRANSPARENT URL WITH TTL RTABLE
+%token	AGENTX APPEND BACKLOG BACKUP BINARY BUFFER CA CACHE SET CHECK CIPHERS CODE
+%token	COOKIE CONTEXT DEMOTE DIGEST DISABLE ERROR EXPECT PASS BLOCK EXTERNAL FILENAME
+%token	FORWARD FROM HASH HEADER HEADERLEN HOST HTTP ICMP INCLUDE INET INET6
+%token	INTERFACE INTERVAL IP KEYPAIR LABEL LISTEN VALUE LOADBALANCE LOG LOOKUP
+%token	METHOD MODE NAT NO DESTINATION NODELAY NOTHING ON PARENT PATH PFTAG PORT
+%token	PREFORK PRIORITY PROTO QUERYSTR REAL REDIRECT RELAY REMOVE REQUEST
+%token	RESPONSE RETRY QUICK RETURN ROUNDROBIN ROUTE SACK SCRIPT SEND SESSION
+%token	SOCKET SPLICE SSL STICKYADDR STRIP STYLE TABLE TAG TAGGED TCP TIMEOUT TLS
+%token	TO ROUTER RTLABEL TRANSPARENT URL WITH TTL RTABLE
 %token	MATCH PARAMS RANDOM LEASTSTATES SRCHASH KEY CERTIFICATE PASSWORD ECDHE
-%token	EDH TICKETS CONNECTION CONNECTIONS CONTEXT ERRORS STATE CHANGES CHECKS
+%token	EDH TICKETS CONNECTION CONNECTIONS ERRORS STATE CHANGES CHECKS
 %token	WEBSOCKETS
 
 Removed tags:
 DESTINATION PRIORITY ROUTER RTLABEL RTABLE MATCH
 */
 
-%token	AGENTX APPEND BACKLOG BACKUP BINARY BUFFER CA CACHE SET CHECK CIPHERS
-%token	CODE COOKIE DEMOTE DIGEST DISABLE ERROR EXPECT PASS BLOCK EXTERNAL
-%token	FILENAME FORWARD FROM HASH HEADER HEADERLEN HOST HTTP ICMP INCLUDE INET
-%token	INET6 INTERFACE INTERVAL IP KEYPAIR LABEL LISTEN VALUE LOADBALANCE LOG
-%token	LOOKUP METHOD MODE NAT NO NODELAY NOTHING ON PARENT PATH
-%token	PFTAG PORT PREFORK PROTO QUERYSTR REAL REDIRECT RELAY REMOVE
-%token	REQUEST RESPONSE RETRY QUICK RETURN ROUNDROBIN ROUTE SACK SCRIPT SEND
-%token	SESSION SOCKET SPLICE SSL STICKYADDR STRIP STYLE TABLE TAG TAGGED TCP
-%token	TIMEOUT TLS TO TRANSPARENT URL WITH TTL 
+%token	APPEND BACKLOG BACKUP BINARY BUFFER CA CACHE SET CHECK CIPHERS CODE
+%token	COOKIE DEMOTE DIGEST DISABLE ERROR EXPECT PASS BLOCK EXTERNAL FILENAME
+%token	FORWARD FROM HASH HEADER HOST ICMP INCLUDE INET INET6 INTERFACE
+%token	INTERVAL IP KEYPAIR LABEL LISTEN VALUE LOADBALANCE LOG LOOKUP METHOD MODE NAT
+%token	NO NODELAY NOTHING ON PARENT PATH PFTAG PORT PREFORK
+%token	PROTO QUERYSTR REAL REDIRECT RELAY REMOVE REQUEST RESPONSE
+%token	RETRY QUICK RETURN ROUNDROBIN ROUTE SACK SCRIPT SEND SESSION
+%token	SOCKET SPLICE SSL STICKYADDR STRIP STYLE TABLE TAG TAGGED TCP TIMEOUT TO
+%token	TRANSPARENT URL WITH TTL
 %token	PARAMS RANDOM LEASTSTATES SRCHASH KEY CERTIFICATE PASSWORD ECDHE
-%token	EDH TICKETS CONNECTION CONNECTIONS CONTEXT ERRORS STATE CHANGES CHECKS
-%token	WEBSOCKETS
+%token	EDH TICKETS WEBSOCKETS
 %token	<v.string>	STRING
 %token  <v.number>	NUMBER
+%type	<v.string>	hostname interface table value
+/* FreeBSD exclude 
 %type	<v.string>	context hostname interface table value path
+*/
 %type	<v.number>	http_type loglevel quick
 %type	<v.number>	dstmode flag forwardmode retry
 %type	<v.number>	opttls opttlsclient
@@ -413,6 +423,9 @@ sendbuf		: NOTHING		{
 				fatal("out of memory");
 			free($1);
 		}
+		| SOCKET STRING {
+			conf->sc_ps->ps_csock.cs_name = $2;
+		}
 		;
 
 sendbinbuf	: NOTHING		{
@@ -485,17 +498,16 @@ main		: INTERVAL NUMBER	{
 				    sizeof(conf->sc_conf.agentx_path));
 		}
 */
-		| SOCKET STRING {
-			conf->sc_ps->ps_csock.cs_name = $2;
-		}
 		;
 
-path		: /* nothing */		{ $$ = NULL; }
+/* FreeBSD exclude
+path		:    nothing   		{ $$ = NULL; }
 		| PATH STRING		{ $$ = $2; }
 
-context		: /* nothing */		{ $$ = NULL; }
+context		:    nothing   		{ $$ = NULL; }
 		| CONTEXT STRING	{ $$ = $2; }
 
+*/
 loglevel	: STATE CHANGES		{ $$ = RELAYD_OPT_LOGUPDATE; }
 		| HOST CHECKS		{ $$ = RELAYD_OPT_LOGHOSTCHECK; }
 		| CONNECTION		{ $$ = (RELAYD_OPT_LOGCON |
@@ -924,10 +936,17 @@ hashkey		: /* empty */		{
 				    strlen($1));
 				MD5Final((unsigned char *)$$.key.data,
 				    &context);
+#ifdef __FreeBSD__
+				htonl($$.key.data[0]);
+				htonl($$.key.data[1]);
+				htonl($$.key.data[2]);
+				htonl($$.key.data[3]);
+#else
 				HTONL($$.key.data[0]);
 				HTONL($$.key.data[1]);
 				HTONL($$.key.data[2]);
 				HTONL($$.key.data[3]);
+#endif
 			}
 			free($1);
 		}
@@ -2437,7 +2456,9 @@ lookup(char *s)
 {
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
+#ifndef __FreeBSD__
 		{ "agentx",		AGENTX },
+#endif
 		{ "append",		APPEND },
 		{ "backlog",		BACKLOG },
 		{ "backup",		BACKUP },
@@ -2453,9 +2474,10 @@ lookup(char *s)
 		{ "ciphers",		CIPHERS },
 		{ "code",		CODE },
 		{ "connection",		CONNECTION },
+#ifndef __FreeBSD__
 		{ "context",		CONTEXT },
+#endif
 		{ "cookie",		COOKIE },
-		{ "curve",		CURVE },
 /* FreeBSD exclude
 		{ "demote",		DEMOTE },
 		{ "destination",	DESTINATION },
