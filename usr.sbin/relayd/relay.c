@@ -16,7 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#else
 #include <sys/types.h>
+#endif
 #include <sys/queue.h>
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -80,15 +84,21 @@ void		 relay_tls_connected(struct ctl_relay_event *);
 void		 relay_tls_readcb(int, short, void *);
 void		 relay_tls_writecb(int, short, void *);
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 void		 relay_connect_retry(int, short, void *);
+#endif
 void		 relay_connect_state(struct rsession *,
 		    struct ctl_relay_event *, enum relay_state);
 
 extern void	 bufferevent_read_pressure_cb(struct evbuffer *, size_t,
 		    size_t, void *);
 
+#ifdef __FreeBSD__ /* file descriptor accounting */
+volatile sig_atomic_t relay_sessions;
+#else
 volatile int relay_sessions;
 volatile int relay_inflight = 0;
+#endif
 objid_t relay_conid;
 
 static struct relayd		*env = NULL;
@@ -519,6 +529,7 @@ relay_socket_af(struct sockaddr_storage *ss, in_port_t port)
 	return (0);
 }
 
+#ifndef __FreeBSD__
 in_port_t
 relay_socket_getport(struct sockaddr_storage *ss)
 {
@@ -534,6 +545,7 @@ relay_socket_getport(struct sockaddr_storage *ss)
 	/* NOTREACHED */
 	return (0);
 }
+#endif
 
 int
 relay_socket(struct sockaddr_storage *ss, in_port_t port,
@@ -619,6 +631,7 @@ relay_socket(struct sockaddr_storage *ss, in_port_t port,
 		    &val, sizeof(val)) == -1)
 			goto bad;
 	}
+#ifndef __FreeBSD__
 	if (proto->tcpflags & (TCPFLAG_SACK|TCPFLAG_NSACK)) {
 		if (proto->tcpflags & TCPFLAG_NSACK)
 			val = 0;
@@ -628,6 +641,7 @@ relay_socket(struct sockaddr_storage *ss, in_port_t port,
 		    &val, sizeof(val)) == -1)
 			goto bad;
 	}
+#endif
 
 	return (s);
 
@@ -786,6 +800,7 @@ relay_connected(int fd, short sig, void *arg)
 	if (con->se_in.bev)
 		bufferevent_enable(con->se_in.bev, EV_READ);
 
+#ifndef __FreeBSD__
 	if (relay_splice(&con->se_out) == -1)
 		relay_close(con, strerror(errno), 1);
 }
@@ -835,8 +850,10 @@ relay_input(struct rsession *con)
 		RELAY_MIN_PREFETCHED * proto->tcpbufsiz, 0);
 	bufferevent_enable(con->se_in.bev, EV_READ|EV_WRITE);
 
+#ifndef __FreeBSD__
 	if (relay_splice(&con->se_in) == -1)
 		relay_close(con, strerror(errno), 1);
+#endif
 }
 
 void
@@ -851,15 +868,18 @@ relay_write(struct bufferevent *bev, void *arg)
 		goto done;
 	if (cre->dst->bev)
 		bufferevent_enable(cre->dst->bev, EV_READ);
+#ifndef __FreeBSD__
 	if (relay_splice(cre->dst) == -1)
 		goto fail;
-
+#endif
 	return;
  done:
 	relay_close(con, "last write (done)", 0);
 	return;
+#ifndef __FreeBSD__
  fail:
 	relay_close(con, strerror(errno), 1);
+#endif
 }
 
 void
@@ -917,6 +937,7 @@ relay_read(struct bufferevent *bev, void *arg)
  * 0 socket splicing is currently not possible
  * 1 socket splicing was successful
  */
+#ifndef __FreeBSD__
 int
 relay_splice(struct ctl_relay_event *cre)
 {
@@ -1012,6 +1033,7 @@ relay_spliceadjust(struct ctl_relay_event *cre)
 
 	return (0);
 }
+#endif
 
 void
 relay_error(struct bufferevent *bev, short error, void *arg)
@@ -1023,6 +1045,7 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 	DPRINTF("%s: session %d: dir %d state %d to read %lld event error %x",
 		__func__, con->se_id, cre->dir, cre->state, cre->toread, error);
 	if (error & EVBUFFER_TIMEOUT) {
+#ifndef __FreeBSD__
 		if (cre->splicelen >= 0) {
 			bufferevent_enable(bev, EV_READ);
 		} else if (cre->dst->splicelen >= 0) {
@@ -1040,9 +1063,13 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 		} else {
 			relay_close(con, "buffer event timeout", 1);
 		}
+#else
+		relay_close(con, "buffer event timeout");
+#endif
 		return;
 	}
 	if (error & EVBUFFER_ERROR && errno == ETIMEDOUT) {
+#ifndef __FreeBSD__
 		if (cre->dst->splicelen >= 0) {
 			switch (relay_splicelen(cre->dst)) {
 			case -1:
@@ -1062,12 +1089,19 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 			goto fail;
 		if (relay_splice(cre) == -1)
 			goto fail;
+#else
+		relay_close(con, "buffer event timed out");
+#endif
 		return;
 	}
 	if (error & EVBUFFER_ERROR && errno == EFBIG) {
+#ifndef __FreeBSD__
 		if (relay_spliceadjust(cre) == -1)
 			goto fail;
 		bufferevent_enable(cre->bev, EV_READ);
+#else
+		relay_close(con, "buffer event error");
+#endif
 		return;
 	}
 	if (error & (EVBUFFER_READ|EVBUFFER_WRITE|EVBUFFER_EOF)) {
@@ -1086,8 +1120,10 @@ relay_error(struct bufferevent *bev, short error, void *arg)
 	}
 	relay_close(con, "buffer event error", 1);
 	return;
+#ifndef __FreeBSD__ /* no socket splicing */
  fail:
 	relay_close(con, strerror(errno), 1);
+#endif
 }
 
 void
@@ -1107,8 +1143,12 @@ relay_accept(int fd, short event, void *arg)
 		return;
 
 	slen = sizeof(ss);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	if ((s = accept_reserve(fd, (struct sockaddr *)&ss,
 	    &slen, FD_RESERVE, &relay_inflight)) == -1) {
+#else
+	if ((s = accept(fd, (struct sockaddr *)&ss, (socklen_t *)&slen)) == -1) {
+#endif
 		/*
 		 * Pause accept if we are out of file descriptors, or
 		 * libevent will haunt us here too.
@@ -1142,8 +1182,10 @@ relay_accept(int fd, short event, void *arg)
 	con->se_out.dst = &con->se_in;
 	con->se_in.con = con;
 	con->se_out.con = con;
+#ifndef __FreeBSD__
 	con->se_in.splicelen = -1;
 	con->se_out.splicelen = -1;
+#endif
 	con->se_in.toread = TOREAD_UNLIMITED;
 	con->se_out.toread = TOREAD_UNLIMITED;
 	con->se_relay = rlay;
@@ -1193,6 +1235,7 @@ relay_accept(int fd, short event, void *arg)
 		return;
 	}
 
+#ifndef __FreeBSD__
 	if (rlay->rl_conf.flags & F_DIVERT) {
 		memcpy(&con->se_out.ss, &con->se_sockname,
 		    sizeof(con->se_out.ss));
@@ -1204,11 +1247,18 @@ relay_accept(int fd, short event, void *arg)
 		    con->se_out.port == rlay->rl_conf.port)
 			con->se_out.ss.ss_family = AF_UNSPEC;
 	} else if (rlay->rl_conf.flags & F_NATLOOK) {
+#else
+	if (rlay->rl_conf.flags & F_NATLOOK) {
+#endif
 		if ((cnl = calloc(1, sizeof(*cnl))) == NULL) {
 			relay_close(con, "failed to allocate nat lookup", 1);
 			return;
 		}
+#ifdef __FreeBSD__
+	}
 
+	if (rlay->rl_conf.flags & F_NATLOOK && cnl != NULL) {
+#endif
 		con->se_cnl = cnl;
 		bzero(cnl, sizeof(*cnl));
 		cnl->in = -1;
@@ -1240,6 +1290,7 @@ relay_accept(int fd, short event, void *arg)
 	if (s != -1) {
 		close(s);
 		free(con);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		/*
 		 * the session struct was not completely set up, but still
 		 * counted as an inflight session. account for this.
@@ -1247,6 +1298,7 @@ relay_accept(int fd, short event, void *arg)
 		relay_inflight--;
 		log_debug("%s: inflight decremented, now %d",
 		    __func__, relay_inflight);
+#endif
 	}
 }
 
@@ -1511,6 +1563,7 @@ relay_connect_state(struct rsession *con, struct ctl_relay_event *cre,
 	cre->state = new;
 }
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 void
 relay_connect_retry(int fd, short sig, void *arg)
 {
@@ -1597,6 +1650,7 @@ relay_connect_retry(int fd, short sig, void *arg)
 
 	return;
 }
+#endif
 
 int
 relay_preconnect(struct rsession *con)
@@ -1615,7 +1669,9 @@ int
 relay_connect(struct rsession *con)
 {
 	struct relay	*rlay = con->se_relay;
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	struct timeval	 evtpause = { 1, 0 };
+#endif
 	int		 bnds = -1, ret;
 
 	/* relay_connect should only be called once per relay */
@@ -1624,6 +1680,7 @@ relay_connect(struct rsession *con)
 		return (0);
 	}
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	/* Connection is already established but session not active */
 	if ((rlay->rl_conf.flags & F_TLSINSPECT) &&
 	    con->se_out.state == STATE_PRECONNECT) {
@@ -1640,6 +1697,7 @@ relay_connect(struct rsession *con)
 		log_warnx("relay_connect: no connection in flight");
 		relay_inflight = 1;
 	}
+#endif
 
 	getmonotime(&con->se_tv_start);
 
@@ -1680,6 +1738,7 @@ relay_connect(struct rsession *con)
  retry:
 	if ((con->se_out.s = relay_socket_connect(&con->se_out.ss,
 	    con->se_out.port, rlay->rl_proto, bnds)) == -1) {
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		if (errno == ENFILE || errno == EMFILE) {
 			log_debug("%s: session %d: forward failed: %s",
 			    __func__, con->se_id, strerror(errno));
@@ -1706,12 +1765,27 @@ relay_connect(struct rsession *con)
 			    __func__, con->se_id, strerror(errno));
 			return (-1);
 		}
+#else
+		if (con->se_retry) {
+			con->se_retry--;
+			log_debug("%s: session %d: "
+			    "forward failed: %s, %s", __func__,
+			    con->se_id, strerror(errno),
+			    con->se_retry ? "next retry" : "last retry");
+			goto retry;
+		}
+		log_debug("%s: session %d: forward failed: %s", __func__,
+		    con->se_id, strerror(errno));
+		return (-1);
+#endif
 	}
 
 	relay_connect_state(con, &con->se_out, STATE_CONNECTED);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	relay_inflight--;
 	DPRINTF("%s: inflight decremented, now %d",__func__,
 	    relay_inflight);
+#endif
 
 	if (errno == EINPROGRESS)
 		event_again(&con->se_ev, con->se_out.s, EV_WRITE|EV_TIMEOUT,
@@ -1758,7 +1832,11 @@ relay_close(struct rsession *con, const char *msg, int err)
 			log_warn("relay %s, "
 			    "session %d (%d active), %s, %s -> %s:%d, "
 			    "%s%s%s", rlay->rl_conf.name, con->se_id,
+#ifndef __FreeBSD__
 			    relay_sessions, con->se_tag != 0 ?
+#else
+			    (int)relay_sessions, con->se_tag != 0 ?
+#endif
 			    tag_id2name(con->se_tag) : "0", ibuf, obuf,
 			    ntohs(con->se_out.port), msg, ptr == NULL ?
 			    "" : ",", ptr == NULL ? "" : ptr);
@@ -1772,6 +1850,7 @@ relay_close(struct rsession *con, const char *msg, int err)
 
 	relay_connect_state(con, &con->se_in, STATE_DONE);
 	if (relay_reset_event(con, &con->se_in)) {
+#ifndef __FreeBSD__ /* file descriptor accounting */
 		if (con->se_out.s == -1) {
 			/*
 			 * the output was never connected,
@@ -1781,6 +1860,7 @@ relay_close(struct rsession *con, const char *msg, int err)
 			log_debug("%s: sessions inflight decremented, now %d",
 			    __func__, relay_inflight);
 		}
+#endif
 	}
 	if (con->se_in.output != NULL)
 		evbuffer_free(con->se_in.output);
@@ -2405,7 +2485,11 @@ relay_tls_handshake(int fd, short event, void *arg)
 		    "relay %s, tls session %d %s (%d active)",
 		    rlay->rl_conf.name, con->se_id,
 		    cre->dir == RELAY_DIR_REQUEST ? "established" : "connected",
+#ifndef __FreeBSD__
 		    relay_sessions);
+#else
+		    (int)relay_sessions);
+#endif
 
 		if (cre->dir == RELAY_DIR_REQUEST) {
 			relay_session(con);

@@ -43,7 +43,7 @@ Table definitions describe a list of hosts,
 in a similar fashion to
 .Xr pf 4
 tables.
-They are used for relay, redirection, and router target selection with
+They are used for relay and redirection target selection with
 the described options and health checking on the host they contain.
 .It Sy Redirections
 Redirections are translated to
@@ -55,9 +55,6 @@ Relays allow application layer load balancing, TLS acceleration, and
 general purpose TCP proxying on layer 7.
 .It Sy Protocols
 Protocols are predefined settings and filter rules for relays.
-.It Sy Routers
-Routers are used to insert routes with health-checked gateways for
-(WAN) link balancing.
 .El
 .Pp
 Within the sections,
@@ -93,7 +90,7 @@ Additional configuration files can be included with the
 .Ic include
 keyword, for example:
 .Bd -literal -offset indent
-include "/etc/relayd.conf.local"
+include "/usr/local/etc/relayd.conf.local"
 .Ed
 .Sh MACROS
 Macros can be defined that will later be expanded in context.
@@ -406,17 +403,6 @@ Perform a complete TLS handshake with each host to check their availability.
 .Pp
 The following general table options are available:
 .Bl -tag -width Ds
-.It Ic demote Ar group
-Enable the per-table
-.Xr carp 4
-demotion option.
-This will increment the carp demotion counter for the
-specified interface group if all hosts in the table are down.
-For more information on interface groups,
-see the
-.Ic group
-keyword in
-.Xr ifconfig 8 .
 .It Ic interval Ar number
 Override the global interval and specify one for this table.
 It must be a multiple of the global interval.
@@ -683,7 +669,7 @@ directive to enable client-side TLS mode when connecting to the remote host.
 .Ic destination
 .Ar options ...
 .Xc
-When redirecting connections with a divert-to rule in
+When redirecting connections with a rdr-to rule in
 .Xr pf.conf 5
 to a relay listening on localhost, this directive will
 look up the real destination address of the intended target host,
@@ -1473,8 +1459,8 @@ Add the routes with the specified
 to the kernel routing table.
 .El
 .Sh FILES
-.Bl -tag -width Ds -compact
-.It Pa /etc/relayd.conf
+.Bl -tag -width "/usr/local/etc/ssl/private/address.keyXX" -compact
+.It Pa /usr/local/etc/relayd.conf
 .Xr relayd 8
 configuration file.
 .Pp
@@ -1484,10 +1470,10 @@ Example configuration file.
 .It Pa /etc/services
 Service name database.
 .Pp
-.It Pa /etc/ssl/address.crt
-.It Pa /etc/ssl/address:port.crt
-.It Pa /etc/ssl/private/address.key
-.It Pa /etc/ssl/private/address:port.key
+.It Pa /usr/local/etc/ssl/address.crt
+.It Pa /usr/local/etc/ssl/address:port.crt
+.It Pa /usr/local/etc/ssl/private/address.key
+.It Pa /usr/local/etc/ssl/private/address:port.key
 Location of the relay TLS server certificates, where
 .Ar address
 is the configured IP address
@@ -1495,7 +1481,7 @@ and
 .Ar port
 is the configured port number of the relay.
 .Pp
-.It Pa /etc/ssl/cert.pem
+.It Pa /usr/local/etc/ssl/cert.pem
 Default location of the CA bundle that can be used with
 .Xr relayd 8 .
 .El
@@ -1602,7 +1588,8 @@ section.
 To start, first generate a new local CA key and certificate:
 .Bd -literal -offset indent
 # openssl req -x509 -days 365 -newkey rsa:2048 \e
-	-keyout /etc/ssl/private/ca.key -out /etc/ssl/ca.crt
+	-keyout /usr/local/etc/ssl/private/ca.key \e
+	-out /usr/local/etc/etc/ssl/ca.crt
 .Ed
 .Pp
 A TLS server key and self-signed cert for 127.0.0.1 are also required;

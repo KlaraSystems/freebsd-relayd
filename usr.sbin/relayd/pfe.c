@@ -211,12 +211,14 @@ pfe_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 	case IMSG_CFG_VIRT:
 		config_getvirt(env, imsg);
 		break;
+#ifndef __FreeBSD__
 	case IMSG_CFG_ROUTER:
 		config_getrt(env, imsg);
 		break;
 	case IMSG_CFG_ROUTE:
 		config_getroute(env, imsg);
 		break;
+#endif
 	case IMSG_CFG_PROTO:
 		config_getproto(env, imsg);
 		break;
@@ -355,8 +357,10 @@ show(struct ctl_conn *c)
 	struct rdr		*rdr;
 	struct host		*host;
 	struct relay		*rlay;
+#ifndef __FreeBSD__
 	struct router		*rt;
 	struct netroute		*nr;
+#endif
 	struct relay_table	*rlt;
 
 	if (env->sc_rdrs == NULL)
@@ -388,7 +392,11 @@ show(struct ctl_conn *c)
 	}
 relays:
 	if (env->sc_relays == NULL)
+#ifndef __FreeBSD__
 		goto routers;
+#else
+		goto end;
+#endif
 	TAILQ_FOREACH(rlay, env->sc_relays, rl_entry) {
 		rlay->rl_stats[env->sc_conf.prefork_relay].id = EMPTY_ID;
 		imsg_compose_event(&c->iev, IMSG_CTL_RELAY, 0, 0, -1,
@@ -408,6 +416,7 @@ relays:
 		}
 	}
 
+#ifndef __FreeBSD__
 routers:
 	if (env->sc_rts == NULL)
 		goto end;
@@ -427,6 +436,7 @@ routers:
 				imsg_compose_event(&c->iev, IMSG_CTL_HOST,
 				    0, 0, -1, host, sizeof(*host));
 	}
+#endif
 
 end:
 	imsg_compose_event(&c->iev, IMSG_CTL_END, 0, 0, -1, NULL, 0);
@@ -679,8 +689,10 @@ pfe_sync(void)
 	struct table		*table;
 	struct ctl_id		 id;
 	struct imsg		 imsg;
+#ifndef __FreeBSD__
 	struct ctl_demote	 demote;
 	struct router		*rt;
+#endif
 
 	bzero(&id, sizeof(id));
 	bzero(&imsg, sizeof(imsg));
@@ -735,6 +747,7 @@ pfe_sync(void)
 		}
 	}
 
+#ifndef __FreeBSD__
 	TAILQ_FOREACH(rt, env->sc_rts, rt_entry) {
 		rt->rt_conf.flags &= ~(F_BACKUP);
 		rt->rt_conf.flags &= ~(F_DOWN);
@@ -742,6 +755,7 @@ pfe_sync(void)
 		if ((rt->rt_gwtable->conf.flags & F_CHANGED))
 			sync_routes(env, rt);
 	}
+#endif
 
 	TAILQ_FOREACH(table, env->sc_tables, entry) {
 		if (table->conf.check == CHECK_NOCHECK)
@@ -752,6 +766,7 @@ pfe_sync(void)
 		 */
 		table->conf.flags &= ~(F_CHANGED);
 
+#ifndef __FreeBSD__
 		/*
 		 * handle demotion.
 		 */
@@ -774,6 +789,7 @@ pfe_sync(void)
 		    sizeof(demote.group));
 		proc_compose(env->sc_ps, PROC_PARENT, IMSG_DEMOTE,
 		    &demote, sizeof(demote));
+#endif
 	}
 }
 
