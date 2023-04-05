@@ -72,7 +72,11 @@ sync_routes(struct relayd *env, struct router *rt)
 {
 	struct netroute		*nr;
 	struct host		*host;
+#ifdef __FreeBSD__
+	char			 buf[MAXHOSTNAMELEN];
+#else
 	char			 buf[HOST_NAME_MAX+1];
+#endif
 	struct ctl_netroute	 crt;
 
 	if (!(env->sc_conf.flags & F_NEEDRT))

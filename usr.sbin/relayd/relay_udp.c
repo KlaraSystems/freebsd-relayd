@@ -162,11 +162,13 @@ relay_udp_socket(struct sockaddr_storage *ss, in_port_t port,
 			    &val, sizeof(val)) == -1)
 				goto bad;
 			break;
+#ifndef __FreeBSD__  /* IPv6 GTSM (RFC 5082) support missing */
 		case AF_INET6:
 			if (setsockopt(s, IPPROTO_IPV6, IPV6_MINHOPCOUNT,
 			    &val, sizeof(val)) == -1)
 				goto bad;
 			break;
+#endif
 		}
 	}
 

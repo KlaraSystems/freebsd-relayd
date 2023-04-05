@@ -624,15 +624,17 @@ relay_read_http(struct bufferevent *bev, void *arg)
 				relay_bindanyreq(con, 0, IPPROTO_TCP);
 				return;
 			}
-			if (relay_connect(con) == -1)
+			if (relay_connect(con) == -1) {
 				relay_abort_http(con, 502, "session failed", 0);
-			return;
+				return;
+			}
 		}
 	}
 	if (con->se_done) {
 		relay_close(con, "last http read (done)", 0);
 		return;
 	}
+#ifndef __FreeBSD__
 	switch (relay_splice(cre)) {
 	case -1:
 		relay_close(con, strerror(errno), 1);
@@ -641,6 +643,7 @@ relay_read_http(struct bufferevent *bev, void *arg)
 	case 0:
 		break;
 	}
+#endif
 	bufferevent_enable(bev, EV_READ);
 	if (EVBUFFER_LENGTH(src) && bev->readcb != relay_read_http)
 		bev->readcb(bev, arg);
@@ -913,7 +916,11 @@ relay_lookup_url(struct ctl_relay_event *cre, const char *host, struct kv *kv)
 	struct http_descriptor	*desc = (struct http_descriptor *)cre->desc;
 	int			 i, j, dots;
 	char			*hi[RELAY_MAXLOOKUPLEVELS], *p, *pp, *c, ch;
+#ifdef __FreeBSD__
+	char			 ph[MAXHOSTNAMELEN];
+#else
 	char			 ph[HOST_NAME_MAX+1];
+#endif
 	int			 ret;
 
 	if (desc->http_path == NULL)

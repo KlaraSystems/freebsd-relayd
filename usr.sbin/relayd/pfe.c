@@ -25,7 +25,9 @@
 #include <net/if.h>
 #include <net/pfvar.h>
 
+/*
 #include <event.h>
+*/
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,8 +86,10 @@ pfe_init(struct privsep *ps, struct privsep_proc *p, void *arg)
 	if (config_init(ps->ps_env) == -1)
 		fatal("failed to initialize configuration");
 
+#ifndef __FreeBSD__
 	if (pledge("stdio recvfd unix pf", NULL) == -1)
 		fatal("pledge");
+#endif
 
 	p->p_shutdown = pfe_shutdown;
 }
@@ -160,9 +164,11 @@ pfe_dispatch_hce(int fd, struct privsep_proc *p, struct imsg *imsg)
 		log_debug("%s: state %d for host %u %s", __func__,
 		    st.up, host->conf.id, host->conf.name);
 
+#ifndef __FreeBSD__
 /* XXX Readd hosttrap code later */
 #if 0
 		snmp_hosttrap(env, table, host);
+#endif
 #endif
 
 		/*
@@ -231,7 +237,9 @@ pfe_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 	case IMSG_CFG_DONE:
 		config_getcfg(env, imsg);
 		init_tables(env);
+#ifndef __FreeBSD__
 		agentx_init(env);
+#endif
 		break;
 	case IMSG_CTL_START:
 		pfe_setup_events();
@@ -240,9 +248,11 @@ pfe_dispatch_parent(int fd, struct privsep_proc *p, struct imsg *imsg)
 	case IMSG_CTL_RESET:
 		config_getreset(env, imsg);
 		break;
+#ifndef __FreeBSD__
 	case IMSG_AGENTXSOCK:
 		agentx_getsock(imsg);
 		break;
+#endif
 	default:
 		return (-1);
 	}

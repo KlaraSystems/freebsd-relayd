@@ -165,8 +165,14 @@ send_icmp(int s, short event, void *arg)
 	struct icmp6_hdr	*icp6;
 	ssize_t			 r;
 	u_char			 packet[ICMP_BUF_SIZE];
+#ifdef __FreeBSD__
+	socklen_t		 slen;
+	int			 i = 0, ttl, mib[4];
+	size_t			 len;
+#else
 	socklen_t		 slen, len;
 	int			 i = 0, ttl;
+#endif
 	u_int32_t		 id;
 
 	if (event == EV_TIMEOUT) {
@@ -230,6 +236,19 @@ send_icmp(int s, short event, void *arg)
 						    __func__);
 				} else {
 					/* Revert to default TTL */
+#ifdef __FreeBSD__
+				mib[0] = CTL_NET;
+				mib[1] = cie->af;
+				mib[2] = IPPROTO_IP;
+				mib[3] = IPCTL_DEFTTL;
+				len = sizeof(ttl);
+				if (sysctl(mib, 4, &ttl, &len, NULL, 0) == 0)
+					if (setsockopt(s, IPPROTO_IP, IP_TTL,
+					    &ttl, sizeof(ttl) == -1))
+						log_warn(
+						    "%s: setsockopt",
+						    __func__);
+#else
 					len = sizeof(ttl);
 					if (getsockopt(s, IPPROTO_IP,
 					    IP_IPDEFTTL, &ttl, &len) == 0) {
@@ -241,6 +260,7 @@ send_icmp(int s, short event, void *arg)
 					} else
 						log_warn("%s: getsockopt",
 						    __func__);
+#endif
 				}
 				break;
 			case AF_INET6:

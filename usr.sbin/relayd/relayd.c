@@ -133,6 +133,11 @@ main(int argc, char *argv[])
 	struct relayd		*env;
 	struct privsep		*ps;
 	const char		*conffile = CONF_FILE;
+#ifdef __FreeBSD__
+#if __FreeBSD_version > 800040
+	u_int32_t               rnd[256];
+#endif
+#endif
 	enum privsep_procid	 proc_id = PROC_PARENT;
 	int			 proc_instance = 0;
 	const char		*errp, *title = NULL;
@@ -195,7 +200,9 @@ main(int argc, char *argv[])
 	env->sc_conf.opts = opts;
 	TAILQ_INIT(&env->sc_hosts);
 	TAILQ_INIT(&env->sc_sessions);
+#ifndef __FreeBSD__
 	env->sc_rtable = getrtable();
+#endif
 	/* initialize the TLS session id to a random key for all relay procs */
 	arc4random_buf(env->sc_conf.tls_sid, sizeof(env->sc_conf.tls_sid));
 
@@ -217,6 +224,15 @@ main(int argc, char *argv[])
 	if (env->sc_conf.opts & RELAYD_OPT_NOACTION)
 		ps->ps_noaction = 1;
 
+#ifdef __FreeBSD__
+#if __FreeBSD_version > 1000002
+	arc4random_buf(rnd, sizeof(rnd));
+	RAND_seed(rnd, sizeof(rnd));
+#else
+	RAND_load_file("/dev/random",2048);
+#endif
+#endif
+
 	ps->ps_instances[PROC_RELAY] = env->sc_conf.prefork_relay;
 	ps->ps_instances[PROC_CA] = env->sc_conf.prefork_relay;
 	ps->ps_instance = proc_instance;
@@ -231,10 +247,12 @@ main(int argc, char *argv[])
 	if (ps->ps_noaction == 0)
 		log_info("startup");
 
+#ifndef __FreeBSD__
 	if (unveil("/", "rx") == -1)
 		err(1, "unveil /");
 	if (unveil(NULL, NULL) == -1)
 		err(1, "unveil");
+#endif
 
 	event_init();
 
@@ -449,9 +467,11 @@ parent_dispatch_pfe(int fd, struct privsep_proc *p, struct imsg *imsg)
 	case IMSG_CFG_DONE:
 		parent_configure_done(env);
 		break;
+#ifndef __FreeBSD__
 	case IMSG_AGENTXSOCK:
 		agentx_setsock(env, p->p_id);
 		break;
+#endif
 	default:
 		return (-1);
 	}
@@ -563,11 +583,27 @@ purge_table(struct relayd *env, struct tablelist *head, struct table *table)
 }
 
 void
+#ifndef __FreeBSD__
 purge_key(char **key, off_t len)
+#else
+purge_key(char **ptr, off_t len)
+#endif
 {
+#ifndef __FreeBSD__
 	freezero(*key, len);
-
 	*key = NULL;
+#else
+
+	char	*key = *ptr;
+
+	if (key == NULL || len == 0)
+		return;
+
+	bzero(key, len);
+	free(key);
+
+	*ptr = NULL;
+#endif
 }
 
 void

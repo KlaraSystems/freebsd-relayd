@@ -18,14 +18,24 @@
 
 #ifdef __FreeBSD__
 #include <sys/param.h>
+#else
+#include <sys/types.h>
 #endif
+#include <sys/socket.h>
+
+#include <sys/time.h>
+
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <syslog.h>
-#include <errno.h>
+#include <netdb.h>
+#include <ctype.h>
 #include <time.h>
+
+#include "relayd.h"
 
 static int	 debug;
 static int	 verbose;
