@@ -39,7 +39,7 @@ LIBEVENT?=	${LIBEVENT:-\${LOCALBASE\}/lib/libevent.a}
 LIBCRT0=	/usr/lib/crt1.o
 
 # SSL settings
-LIBCRYPTO?=	${LIBCRYPTO:-\$\{LOCALBASE\}/lib/libcrypto.a}
-LIBSSL?=	${LIBSSL:-\$\{LOCALBASE\}/lib/libssl.a}
-OPENSSLINCDIR?=	${OPENSSLINCDIR:-\$\{LOCALBASE\}/include}
+LIBCRYPTO?=	${LIBCRYPTO:-\${LOCALBASE\}/lib/libcrypto.a}
+LIBSSL?=	${LIBSSL:-\${LOCALBASE\}/lib/libssl.a}
+OPENSSLINCDIR?=	${OPENSSLINCDIR:-\${LOCALBASE\}/include}
 EOF
