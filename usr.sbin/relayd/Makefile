@@ -11,6 +11,10 @@ MAN=		relayd.8 relayd.conf.5
 LDADD=		-lagentx -levent -ltls -lssl -lcrypto -lutil
 DPADD=		${LIBAGENTX} ${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR}
+# BEGIN FreeBSD-relayd
+CFLAGS+=	-I${.CURDIR}/../../lib/libevent
+CFLAGS+=	-I${.CURDIR}/../../lib/libutil
+# END FreeBSD-relayd
 CFLAGS+=	-Wstrict-prototypes -Wmissing-prototypes
 CFLAGS+=	-Wmissing-declarations
 CFLAGS+=	-Wshadow -Wpointer-arith
