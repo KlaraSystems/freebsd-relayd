@@ -39,6 +39,10 @@ CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
 # Currently, relayd does not support SNMP traps on FreeBSD.
 CFLAGS:=	${CFLAGS:N-I${.CURDIR}/../snmpd}
 
+CFLAGS+=	-DOPENSSL_NO_MD5
+CFLAGS+=	-DOPENSSL_NO_SHA
+CFLAGS+=	-DSHA1_DIGEST_LENGTH=SHA_DIGEST_LENGTH
+CFLAGS+=	-DSHA1_DIGEST_STRING_LENGTH=SHA_DIGEST_LENGTH
 CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
