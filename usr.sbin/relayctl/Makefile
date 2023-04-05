@@ -19,6 +19,9 @@ DPADD=		${LIBUTIL}
 # correctly. Work around that.
 LDADD+=		${.CURDIR}/../relayd/log.o
 DPADD+=		${.CURDIR}/../relayd/log.o
+# Pass the right libutil implementation.
+LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
+LDADD:=		${LDADD:N-lutil} ${LIBUTIL}
 # END FreeBSD-relayd
 CFLAGS+=	-Wall -Werror -I${.CURDIR} -I${.CURDIR}/../relayd
 # BEGIN FreeBSD-relayd
