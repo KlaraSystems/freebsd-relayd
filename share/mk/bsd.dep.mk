@@ -11,7 +11,7 @@ depend:
 # catch22: don't include potentially bogus files we are going to clean
 .  if !(make(clean) || make(cleandir) || make(obj))
 .    for o in ${DEPS}
-       sinclude $o
+.      sinclude "$o"
 .    endfor
 .  endif
 .endif
