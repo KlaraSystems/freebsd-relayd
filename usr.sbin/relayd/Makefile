@@ -21,9 +21,9 @@ DPADD=		${LIBAGENTX} ${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
 CFLAGS+=	-Wall -I${.CURDIR}
 # BEGIN FreeBSD-relayd
 # Pass the right LibreSSL library.
-LDADD:=		${LDALL:N-lssl} ${LIBSSL}
+LDADD:=		${LDADD:N-lssl} ${LIBSSL}
 # Pass the right libcrypto implementation.
-LDADD:=		${LDALL:N-lcrypto} ${LIBCRYPTO}
+LDADD:=		${LDADD:N-lcrypto} ${LIBCRYPTO}
 
 # Set LIBEVENT and LIBUTIL to the appropriate build artifacts.
 LIBEVENT=	${.CURDIR}/../../lib/libevent/libevent.a
