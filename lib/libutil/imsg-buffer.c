@@ -78,7 +78,11 @@ ibuf_realloc(struct ibuf *buf, size_t len)
 		return (-1);
 	}
 
+#ifdef __FreeBSD__
+	b = realloc(buf->buf, buf->wpos + len);
+#else
 	b = recallocarray(buf->buf, buf->size, buf->wpos + len, 1);
+#endif
 	if (b == NULL)
 		return (-1);
 	buf->buf = b;
@@ -192,7 +196,11 @@ ibuf_free(struct ibuf *buf)
 {
 	if (buf == NULL)
 		return;
+#ifdef __FreeBSD__
+	free(buf->buf);
+#else
 	freezero(buf->buf, buf->size);
+#endif
 	free(buf);
 }
 
