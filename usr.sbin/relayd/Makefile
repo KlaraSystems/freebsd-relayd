@@ -9,6 +9,8 @@ SRCS+=		agentx_control.c ca.c carp.c check_icmp.c check_script.c \
 		name2id.c pfe.c pfe_filter.c pfe_route.c proc.c relay.c \
 		relay_http.c relay_udp.c relayd.c shuffle.c ssl.c util.c
 # BEGIN FreeBSD-relayd
+# Hook siphash.c to the build.
+SRCS+=		siphash.c
 # Currently, relayd does not support SNMP traps on FreeBSD.
 SRCS:=		${SRCS:Nagentx_control.c}
 # Currently, relayd does not support CARP demote on FreeBSD.
