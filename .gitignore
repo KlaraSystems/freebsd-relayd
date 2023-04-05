@@ -1,5 +1,17 @@
 **/obj
 **/tags
 # BEGIN FreeBSD-relayd
+*.a
+*.d
+*.manlint
+*.o
+*.po
+*.so
+lib/libevent/libevent.so.*
+lib/libutil/libutil.so.*
 share/mk/freebsd.mk
+usr.sbin/relayctl/relayctl
+usr.sbin/relayd/parse.c
+usr.sbin/relayd/relayd
+usr.sbin/relayd/y.tab.h
 # END FreeBSD-relayd
