@@ -25,7 +25,6 @@ LDADD:=		${LDADD:N-lssl} ${LIBSSL}
 # Pass the right libcrypto implementation.
 LDADD:=		${LDADD:N-lcrypto} ${LIBCRYPTO}
 # Pass the right libevent implementation.
-LIBEVENT=	${.CURDIR}/../../lib/libevent/libevent.a
 LDADD:=		${LDADD:N-levent} ${LIBEVENT}
 # Pass the right libutil implementation.
 LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
@@ -44,7 +43,7 @@ CFLAGS+=	-DOPENSSL_NO_SHA
 CFLAGS+=	-DSHA1_DIGEST_LENGTH=SHA_DIGEST_LENGTH
 CFLAGS+=	-DSHA1_DIGEST_STRING_LENGTH=SHA_DIGEST_LENGTH
 CFLAGS+=	-D__dead=""
-CFLAGS+=	-I${.CURDIR}/../../lib/libevent
+CFLAGS+=	-I${LOCALBASE}/include
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
 CFLAGS+=	-I${OPENSSLINCDIR}
 # END FreeBSD-relayd
