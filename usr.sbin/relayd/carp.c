@@ -20,6 +20,7 @@
 #include <sys/socket.h>
 #include <sys/queue.h>
 #include <sys/ioctl.h>
+#include <sys/queue.h>
 
 #include <net/if.h>
 

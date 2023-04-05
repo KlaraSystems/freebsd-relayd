@@ -43,8 +43,15 @@
 #ifndef nitems
 #define	nitems(_a)	(sizeof((_a)) / sizeof((_a)[0]))
 #endif
+#endif
+#include <limits.h>
+#include <imsg.h>
 
+#ifdef __FreeBSD__
+#define	CONF_FILE		"/usr/local/etc/relayd.conf"
+#else
 #define CONF_FILE		"/etc/relayd.conf"
+#endif
 #define RELAYD_SOCKET		"/var/run/relayd.sock"
 #define PF_SOCKET		"/dev/pf"
 #define RELAYD_USER		"_relayd"
@@ -67,7 +74,9 @@
 #define RELAY_MAX_PREFETCH	256
 #define RELAY_MIN_PREFETCHED	32
 
+#ifndef __FreeBSD__ /* file descriptor accounting */
 #define FD_RESERVE		5
+#endif
 
 #define RELAY_MAX_BACKLOG	512
 #define RELAY_TIMEOUT		600
@@ -79,7 +88,9 @@
 #define RELAY_STATINTERVAL	60
 #define RELAY_BACKLOG		10
 #define RELAY_MAXLOOKUPLEVELS	5
+#ifndef __FreeBSD__ /* file descriptor accounting */
 #define RELAY_OUTOF_FD_RETRIES	5
+#endif
 #define RELAY_MAX_HASH_RETRIES	5
 #define RELAY_TLS_PRIV_TIMEOUT	1000	/* wait 1sec for the ca */
 
@@ -98,7 +109,18 @@
 #define ICMP_BUF_SIZE		64
 #define ICMP_RCVBUF_SIZE	262144
 
+#ifndef __FreeBSD__
 #define AGENTX_RECONNECT_TIMEOUT	{ 3, 0 }	/* sec, usec */
+#else
+#define	SIMPLEQ_HEAD		STAILQ_HEAD
+#define	SIMPLEQ_FIRST		STAILQ_FIRST
+#define	SIMPLEQ_REMOVE_HEAD	STAILQ_REMOVE_HEAD
+#define	SIMPLEQ_ENTRY		STAILQ_ENTRY
+#define	SIMPLEQ_INIT		STAILQ_INIT
+#define	SIMPLEQ_EMPTY		STAILQ_EMPTY
+#define	SIMPLEQ_NEXT		STAILQ_NEXT
+#define	SIMPLEQ_INSERT_TAIL	STAILQ_INSERT_TAIL
+#endif
 
 #define PROC_PARENT_SOCK_FILENO	3
 #define PROC_MAX_INSTANCES	32
@@ -574,10 +596,14 @@ struct rsession {
 	struct timeval			 se_timeout;
 	struct timeval			 se_tv_start;
 	struct timeval			 se_tv_last;
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	struct event			 se_inflightevt;
+#endif
 	int				 se_done;
 	int				 se_retry;
+#ifndef __FreeBSD__ /* file descriptor accounting */
 	int				 se_retrycount;
+#endif
 	int				 se_connectcount;
 	int				 se_haslog;
 	struct evbuffer			*se_log;
@@ -856,6 +882,7 @@ enum dstmode {
 };
 #define RELAY_DSTMODE_DEFAULT		RELAY_DSTMODE_ROUNDROBIN
 
+#ifndef __FreeBSD__
 struct netroute_config {
 	objid_t			 id;
 	struct sockaddr_storage	 ss;
@@ -901,6 +928,7 @@ struct ctl_netroute {
 	struct netroute_config	nr;
 	struct router_config	rt;
 };
+#endif
 
 /* initially control.h */
 struct control_sock {
@@ -918,7 +946,9 @@ TAILQ_HEAD(control_socks, control_sock);
 extern struct {
 	struct event	 ev;
 	int		 fd;
-} control_state;
+};
+
+EXTERN struct control_state control_state;
 
 struct imsgev {
 	struct imsgbuf		 ibuf;
@@ -986,12 +1016,17 @@ enum imsg_type {
 	IMSG_HOST_STATUS,	/* notifies from hce to pfe */
 	IMSG_SYNC,
 	IMSG_NATLOOK,
+#ifndef __FreeBSD__
 	IMSG_DEMOTE,
+#endif
 	IMSG_STATISTICS,
 	IMSG_SCRIPT,
+#ifndef __FreeBSD__
 	IMSG_AGENTXSOCK,
 	IMSG_BINDANY,
+#ifndef __FreeBSD__
 	IMSG_RTMSG,		/* from pfe to parent */
+#endif
 	IMSG_CFG_TABLE,		/* configuration from parent */
 	IMSG_CFG_HOST,
 	IMSG_CFG_RDR,
@@ -1099,14 +1134,20 @@ struct relayd {
 	struct relayd_config	 sc_conf;
 	const char		*sc_conffile;
 	struct pfdata		*sc_pf;
+#ifndef __FreeBSD__
 	int			 sc_rtsock;
 	int			 sc_rtseq;
+#endif
 	int			 sc_tablecount;
 	int			 sc_rdrcount;
 	int			 sc_protocount;
 	int			 sc_relaycount;
+#ifndef __FreeBSD__
 	int			 sc_routercount;
 	int			 sc_routecount;
+#endif
+	struct timeval		 sc_interval;
+	struct timeval		 sc_timeout;
 	struct table		 sc_empty_table;
 	struct protocol		 sc_proto_default;
 	struct event		 sc_ev;
@@ -1115,8 +1156,10 @@ struct relayd {
 	struct rdrlist		*sc_rdrs;
 	struct protolist	*sc_protos;
 	struct relaylist	*sc_relays;
+#ifndef __FreeBSD__
 	struct routerlist	*sc_rts;
 	struct netroutelist	*sc_routes;
+#endif
 	struct ca_pkeylist	*sc_pkeys;
 	struct relaycertlist	*sc_certs;
 	struct sessionlist	 sc_sessions;
@@ -1126,8 +1169,9 @@ struct relayd {
 
 	struct event		 sc_statev;
 
+#ifndef __FreeBSD__
 	struct event		 sc_agentxev;
-
+#endif
 	int			 sc_has_icmp;
 	int			 sc_has_icmp6;
 	struct ctl_icmp_event	 sc_icmp_send;
@@ -1199,10 +1243,12 @@ int	 natlook(struct relayd *, struct ctl_natlook *);
 u_int64_t
 	 check_table(struct relayd *, struct rdr *, struct table *);
 
+#ifndef __FreeBSD__
 /* pfe_route.c */
 void	 init_routes(struct relayd *);
 void	 sync_routes(struct relayd *, struct router *);
 int	 pfe_route(struct relayd *, struct ctl_netroute *);
+#endif
 
 /* hce.c */
 void	 hce(struct privsep *, struct privsep_proc *);
@@ -1219,8 +1265,10 @@ void	 relay_natlook(int, short, void *);
 void	 relay_session(struct rsession *);
 int	 relay_from_table(struct rsession *);
 int	 relay_socket_af(struct sockaddr_storage *, in_port_t);
+#ifndef __FreeBSD__
 in_port_t
 	 relay_socket_getport(struct sockaddr_storage *);
+#endif
 int	 relay_cmp_af(struct sockaddr_storage *,
 	    struct sockaddr_storage *);
 void	 relay_write(struct bufferevent *, void *);
@@ -1309,8 +1357,10 @@ void	 hash_x509(X509 *cert, char *hash, size_t hashlen);
 struct host	*host_find(struct relayd *, objid_t);
 struct table	*table_find(struct relayd *, objid_t);
 struct rdr	*rdr_find(struct relayd *, objid_t);
+#ifndef __FreeBSD__
 struct netroute	*route_find(struct relayd *, objid_t);
 struct router	*router_find(struct relayd *, objid_t);
+#endif
 struct host	*host_findbyname(struct relayd *, const char *);
 struct table	*table_findbyname(struct relayd *, const char *);
 struct table	*table_findbyconf(struct relayd *, struct table *);
@@ -1350,8 +1400,10 @@ void		*get_data(u_int8_t *, size_t);
 int		 sockaddr_cmp(struct sockaddr *, struct sockaddr *, int);
 struct in6_addr *prefixlen2mask6(u_int8_t, u_int32_t *);
 u_int32_t	 prefixlen2mask(u_int8_t);
+#ifndef __FreeBSD__ /* file descriptor accounting */
 int		 accept_reserve(int, struct sockaddr *, socklen_t *, int,
 		     volatile int *);
+#endif
 struct kv	*kv_add(struct kvtree *, char *, char *, int);
 int		 kv_set(struct kv *, char *, ...)
 				__attribute__((__format__ (printf, 2, 3)));
@@ -1395,11 +1447,13 @@ const char	*tag_id2name(u_int16_t);
 void		 tag_unref(u_int16_t);
 void		 tag_ref(u_int16_t);
 
+#ifndef __FreeBSD__
 /* agentx_control.c */
 void	 agentx_init(struct relayd *);
 void	 agentx_setsock(struct relayd *, enum privsep_procid);
 void	 agentx_getsock(struct imsg *);
 void	 snmp_hosttrap(struct relayd *, struct table *, struct host *);
+#endif
 
 /* shuffle.c */
 void		shuffle_init(struct shuffle *);
@@ -1472,9 +1526,11 @@ int	 config_gethost(struct relayd *, struct imsg *);
 int	 config_setrdr(struct relayd *, struct rdr *);
 int	 config_getrdr(struct relayd *, struct imsg *);
 int	 config_getvirt(struct relayd *, struct imsg *);
+#ifndef __FreeBSD__
 int	 config_setrt(struct relayd *, struct router *);
 int	 config_getrt(struct relayd *, struct imsg *);
 int	 config_getroute(struct relayd *, struct imsg *);
+#endif
 int	 config_setproto(struct relayd *, struct protocol *);
 int	 config_getproto(struct relayd *, struct imsg *);
 int	 config_setrule(struct relayd *, struct protocol *);
@@ -1483,5 +1539,11 @@ int	 config_setrelay(struct relayd *, struct relay *);
 int	 config_getrelay(struct relayd *, struct imsg *);
 int	 config_getrelaytable(struct relayd *, struct imsg *);
 int	 config_getrelayfd(struct relayd *, struct imsg *);
+
+#ifdef __FreeBSD__
+#if __FreeBSD_version < 800041
+u_int32_t	arc4random_uniform(u_int32_t upper_bound);
+#endif
+#endif
 
 #endif /* RELAYD_H */
