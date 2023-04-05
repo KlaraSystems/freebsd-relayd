@@ -41,7 +41,9 @@
 #include <unistd.h>
 
 #include "event.h"
-#include "log.h"
+#include "config.h"
+#include "evutil.h"
+#include "./log.h"
 
 struct evbuffer *
 evbuffer_new(void)
@@ -91,7 +93,7 @@ evbuffer_add_buffer(struct evbuffer *outbuf, struct evbuffer *inbuf)
 		/*
 		 * Optimization comes with a price; we need to notify the
 		 * buffer if necessary of the changes. oldoff is the amount
-		 * of data that we transferred from inbuf to outbuf
+		 * of data that we transfered from inbuf to outbuf
 		 */
 		if (inbuf->off != oldoff && inbuf->cb != NULL)
 			(*inbuf->cb)(inbuf, oldoff, inbuf->off, inbuf->cbarg);

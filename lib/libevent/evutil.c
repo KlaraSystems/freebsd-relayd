@@ -71,6 +71,22 @@ evutil_strtoll(const char *s, char **endptr, int base)
 	return (ev_int64_t)strtoll(s, endptr, base);
 }
 
+#ifndef _EVENT_HAVE_GETTIMEOFDAY
+int
+evutil_gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	struct _timeb tb;
+
+	if(tv == NULL)
+		return -1;
+
+	_ftime(&tb);
+	tv->tv_sec = (long) tb.time;
+	tv->tv_usec = ((int) tb.millitm) * 1000;
+	return 0;
+}
+#endif
+
 int
 evutil_snprintf(char *buf, size_t buflen, const char *format, ...)
 {
@@ -93,7 +109,20 @@ evutil_vsnprintf(char *buf, size_t buflen, const char *format, va_list ap)
 static int
 evutil_issetugid(void)
 {
+#ifdef _EVENT_HAVE_ISSETUGID
 	return issetugid();
+#else
+
+#ifdef _EVENT_HAVE_GETEUID
+	if (getuid() != geteuid())
+		return 1;
+#endif
+#ifdef _EVENT_HAVE_GETEGID
+	if (getgid() != getegid())
+		return 1;
+#endif
+	return 0;
+#endif
 }
 
 const char *
