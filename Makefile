@@ -45,6 +45,10 @@ SUBDIR+= sys
 SUBDIR+= etc distrib regress
 .endif
 
+# BEGIN FreeBSD-relayd
+SUBDIR= lib usr.sbin
+# END FreeBSD-relayd
+
 regression-tests:
 	@echo Running regression tests...
 	@cd ${.CURDIR}/regress && ${MAKE} depend && exec ${MAKE} regress
