@@ -90,7 +90,7 @@ The latest tested LibreSSL version is 3.7.2.
 
 8. Test relayd.
 
-   Currently, the testing procedure is not autmated. Testing should include the
+   Currently, the testing procedure is not automated. Testing should include the
    following steps:
 
    1. Create a configuration file for relayd.
@@ -100,5 +100,5 @@ The latest tested LibreSSL version is 3.7.2.
 9. Publish the final branch to the `freebsd-relayd` repository.
 
    ```sh
-   git push --set-upstream freebsd-relayd `OSMAJOR.OSMINOR.LATEST_COMMIT_DATE`
+   git push --set-upstream freebsd-relayd "OSMAJOR.OSMINOR.LATEST_COMMIT_DATE"
    ```
