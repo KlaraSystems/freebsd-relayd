@@ -33,6 +33,8 @@ cat << EOF > "$makefile"
 LOCALBASE?=	${LOCALBASE:-/usr/local}
 PREFIX?=	${PREFIX:-/usr/local}
 
+CFLAGS+=	-DFREEBSD_RELAYD_PREFIX='"\${PREFIX}"'
+
 # Set LIBCRT0 to make OpenBSD's bsd.prog.mk happy.
 LIBCRT0=	/usr/lib/crt1.o
 
