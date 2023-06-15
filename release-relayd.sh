@@ -47,5 +47,5 @@ set -- "$@" usr.sbin/relayd
 
 rm -fr "$top_directory"
 mkdir "$top_directory"
-tar -c -f - -- "$@" | tar -x -C "$top_directory" -f -
+git ls-files "$@" | xargs tar -c -f - -- | tar -x -C "$top_directory" -f -
 tar -c -f "$archive" -- "$top_directory"
