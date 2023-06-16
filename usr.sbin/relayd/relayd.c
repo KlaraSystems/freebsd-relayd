@@ -254,6 +254,11 @@ main(int argc, char *argv[])
 		err(1, "unveil");
 #endif
 
+#ifdef __FreeBSD__
+	/* OPNsense init scripts get confused if the parent process does not call
+	 * setproctitle() to change its name to "parent". */
+	setproctitle("parent");
+#endif
 	event_init();
 
 	signal_set(&ps->ps_evsigint, SIGINT, parent_sig_handler, ps);
