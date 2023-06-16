@@ -27,17 +27,18 @@ CFLAGS+=	-Wall -I${.CURDIR}
 # Drop the agentx library.
 LDADD:=		${LDADD:N-lagentx}
 DPADD:=		${DPADD:N${LIBAGENTX}}
-# Pass the right LibreSSL library.
-LDADD:=		${LDADD:N-lssl} ${LIBSSL}
-LDADD:=		${LDADD:N-ltls} ${LIBTLS}
-# Pass the right libcrypto implementation.
-LDADD:=		${LDADD:N-lcrypto} ${LIBCRYPTO}
 # Pass the right libevent implementation.
 LIBEVENT=	${.CURDIR}/../../lib/libevent/libevent.a
-LDADD:=		${LDADD:N-levent} ${LIBEVENT}
+LDADD:=		${LDADD:S/-levent/${LIBEVENT}/}
+# Pass the right LibreSSL library.
+LDADD:=		${LDADD:S/-lssl/${LIBSSL}/}
+LDADD:=		${LDADD:S/-ltls/${LIBTLS}/}
+# Pass the right libcrypto implementation.
+LDADD:=		${LDADD:S/-lcrypto/${LIBCRYPTO}/}
 # Pass the right libutil implementation.
 LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
-LDADD:=		${LDADD:N-lutil} ${LIBUTIL}
+LDADD:=		${LDADD:S/-lutil/${LIBUTIL}/}
+
 # Pass libmd to the linker.
 LDADD+=		-lmd
 
