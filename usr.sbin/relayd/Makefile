@@ -42,8 +42,6 @@ LDADD:=		${LDADD:S/-lutil/${LIBUTIL}/}
 # Pass libmd to the linker.
 LDADD+=		-lmd
 
-CFLAGS+=	-DOPENSSL_NO_MD5
-CFLAGS+=	-DOPENSSL_NO_SHA
 CFLAGS+=	-D__dead=""
 CFLAGS+=	-I${.CURDIR}/../../lib/libevent
 CFLAGS+=	-I${.CURDIR}/../../lib/libutil
