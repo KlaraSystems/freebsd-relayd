@@ -95,6 +95,14 @@ CFLAGS+= -I${.CURDIR} -DNDEBUG \
 	-DHAVE_VASPRINTF \
 	-DHAVE_WORKING_KQUEUE
 
+# BEGIN FreeBSD-relayd
+# We use config.h so define HAVE_CONFIG_H.
+#
+# XXX-0MP: This might not be necessary, but this is what was done in the
+# mmatuska's port of relayd.
+CFLAGS+=	-DHAVE_CONFIG_H
+# END FreeBSD-relayd
+
 CDIAGFLAGS=	-Wall
 #CDIAGFLAGS+=	-Werror
 CDIAGFLAGS+=	-Wstrict-prototypes
