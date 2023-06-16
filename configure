@@ -34,6 +34,10 @@ LOCALBASE?=	${LOCALBASE:-/usr/local}
 PREFIX?=	${PREFIX:-/usr/local}
 
 CFLAGS+=	-DFREEBSD_RELAYD_PREFIX='"\${PREFIX}"'
+# Keep SHA1_DIGEST_LENGTH and SHA1_DIGEST_STRING_LENGTH values consistent
+# across the code base.
+CFLAGS+=	-DSHA1_DIGEST_LENGTH=SHA_DIGEST_LENGTH
+CFLAGS+=	-DSHA1_DIGEST_STRING_LENGTH=SHA_DIGEST_LENGTH
 
 # Set LIBCRT0 to make OpenBSD's bsd.prog.mk happy.
 LIBCRT0=	/usr/lib/crt1.o
