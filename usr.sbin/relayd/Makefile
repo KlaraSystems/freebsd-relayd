@@ -26,6 +26,7 @@ CFLAGS+=	-Wall -I${.CURDIR}
 # BEGIN FreeBSD-relayd
 # Drop the agentx library.
 LDADD:=		${LDADD:N-lagentx}
+DPADD:=		${DPADD:N${LIBAGENTX}}
 # Pass the right LibreSSL library.
 LDADD:=		${LDADD:N-lssl} ${LIBSSL}
 LDADD:=		${LDADD:N-ltls} ${LIBTLS}
