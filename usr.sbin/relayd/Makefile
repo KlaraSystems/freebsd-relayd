@@ -39,10 +39,6 @@ LIBUTIL=	${.CURDIR}/../../lib/libutil/libutil.a
 LDADD:=		${LDADD:N-lutil} ${LIBUTIL}
 # Pass libmd to the linker.
 LDADD+=		-lmd
-# END FreeBSD-relayd
-DPADD=		${LIBEVENT} ${LIBSSL} ${LIBCRYPTO} ${LIBUTIL}
-CFLAGS+=	-Wall -I${.CURDIR} -I${.CURDIR}/../snmpd
-# BEGIN FreeBSD-relayd
 # Currently, relayd does not support SNMP traps on FreeBSD.
 CFLAGS:=	${CFLAGS:N-I${.CURDIR}/../snmpd}
 
