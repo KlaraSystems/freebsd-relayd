@@ -42,6 +42,14 @@ CFLAGS+=	-DOPENSSL_NO_SHA
 # across the code base.
 CFLAGS+=	-DSHA1_DIGEST_LENGTH=SHA_DIGEST_LENGTH
 CFLAGS+=	-DSHA1_DIGEST_STRING_LENGTH=SHA_DIGEST_LENGTH
+# One of the reasons for the -pthread flag in LDFLAGS is to fix linking of relayd against
+# a static version of libcrypto. When relayd is linked against a LibreSSL
+# libcrypto.a, it crashes shortly after starting. The crashing subprocess is
+# hce and the error message is:
+#     hce: hce_setup_events: tls_config_new
+# A tested workaround is to link against libcrypto.so, but that is not an
+# option if LibreSSL is not the default SSL implementation on the system.
+LDFLAGS+=	-pthread
 
 # Set LIBCRT0 to make OpenBSD's bsd.prog.mk happy.
 LIBCRT0=	/usr/lib/crt1.o
