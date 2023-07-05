@@ -27,6 +27,45 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+usage() {
+	cat <<'USAGE'
+Usage: ./configure [-h]
+Options:
+-h  Show the usage message.
+Environment:
+LIBCRYPTO      The location of the libcrypto library.
+               Default: "${LOCALBASE}/lib/libcrypto.a"
+LIBSSL         The location of the libssl library.
+               Default: "${LOCALBASE}/lib/libssl.a"
+LIBTLS         The location of the libtls library.
+               Default: "${LOCALBASE}/lib/libtls.a"
+LOCALBASE      The path prefix of the already installed depenencies.
+               Default: "/usr/local".
+OPENSSLINCDIR  The location of the LibreSSL headers.
+               Default: "/usr/local/include".
+PREFIX         The installation path prefix for relayd.
+               Default: "/usr/local".
+USAGE
+}
+
+set -eu
+
+OPTIND=1
+while getopts h opt; do
+	case "$opt" in
+	h)
+		usage
+		exit 0
+		;;
+	?)
+		exit 1
+		;;
+	esac
+done
+if [ "$OPTIND" -ne 0 ]; then
+	shift "$(( OPTIND - 1 ))"
+fi
+
 makefile="share/mk/freebsd.mk"
 
 cat << EOF > "$makefile"

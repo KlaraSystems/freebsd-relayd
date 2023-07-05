@@ -3,9 +3,11 @@
 ## Building
 
 ```
-env LIBCRYPTO=... LIBSSL=... LIBTLS=... LOCALBASE=... OPENSSLINCDIR=... PREFIX=... ./configure
+./configure
 make
 ```
+
+See `./configure -h` to learn how to modify the defaults such as the locations of libraries and header files.
 
 ## Compatibility
 
