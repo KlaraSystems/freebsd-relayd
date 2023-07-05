@@ -52,6 +52,18 @@ rules, the following line is required in the filter section of
 .Bd -literal -offset indent
 anchor "relayd/*"
 .Ed
+.\" BEGIN FreeSBD-relayd
+.Pp
+On
+.Fx ,
+the filter section requires the
+.Ql rdr-anchor
+rule instead of
+.Ql anchor :
+.Bd -literal -offset indent
+rdr-anchor "relayd/*"
+.Ed
+.\" END FreeBSD-relayd
 .Pp
 Layer 7 relaying happens at the application level and is
 handled by
