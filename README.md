@@ -109,11 +109,7 @@ The latest tested LibreSSL version is 3.7.2.
 
 ### Publish a release from a version branch
 
-1. Make sure that the local repository is clean. Best way is to either work on
-   a fresh clone or by running `git clean -fdx`, which removes all untracked
-   files and directories.
-
-2. Tag a release. The tag should follow this format:
+1. Tag a release. The tag should follow this format:
    `OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL`, where `PATCHLEVEL` is the
    next tag number on the version branch (starting with 0),
    e.g., `7.3.2023.05.09-p0`.
@@ -122,22 +118,11 @@ The latest tested LibreSSL version is 3.7.2.
    git tag OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL
    ```
 
-3. Create `relayd-OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL.tar.gz`
-   with `release-relayd.sh`.
-
-   ```sh
-   ./release-relayd.sh OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL
-   ```
-
-   Make sure that the archive actually contains all the necessary files to
-   build relayd.
-
-4. Publish the tag.
+2. Publish the tag.
 
    ```sh
    git push --tags
    ```
 
-5. Create a new release on GitHub based on the newly created tag and attach the
-   `relayd-OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL.tar.gz` archive to
-   the release page.
+3. The release with the release archive will be created automatically by the
+   GitHub Actions as configued in `./.github/workflows/main.yml`.

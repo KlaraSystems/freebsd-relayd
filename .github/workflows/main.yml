@@ -1,0 +1,26 @@
+name: Main
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.20[0-9][0-9].[0-1][0-9].[0-3][0-9]-p[0-9]+"
+
+permissions:
+    contents: write
+
+jobs:
+  build:
+    env:
+      TARBALL: "./relayd-${{ github.ref_name }}.tar.gz"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check out"
+        uses: actions/checkout@v3
+      - name: Package
+        run:  ./release-relayd.sh "${{ github.ref_name }}"
+      - name: Test
+        run: tar -t -f "${{ env.TARBALL }}"
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.TARBALL }}
