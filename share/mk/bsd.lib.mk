@@ -34,6 +34,12 @@ CXXFLAGS+=	${NOPIE_FLAGS}
 AFLAGS+=	${NOPIE_FLAGS}
 .endif
 
+# BEGIN FreeBSD-relayd
+# On FreeBSD, the -p flag is not supported by the compiler.  Use -pg instead as
+# this is what is used in FreeBSD's bsd.lib.mk.
+PO_FLAG=	-pg
+# END FreeBSD-relayd
+
 .c.o:
 	@echo "${COMPILE.c} ${.IMPSRC} -o ${.TARGET}"
 	@${COMPILE.c} ${DFLAGS} ${.IMPSRC}  -o ${.TARGET}.o
@@ -42,8 +48,12 @@ AFLAGS+=	${NOPIE_FLAGS}
 	@rm -f ${.TARGET}.o
 
 .c.po:
-	@echo "${COMPILE.c} -p ${.IMPSRC} -o ${.TARGET}"
-	@${COMPILE.c} ${DFLAGS} -p ${.IMPSRC} -o ${.TARGET}.o
+# BEGIN FreeBSD-relayd
+#	@echo "${COMPILE.c} -p ${.IMPSRC} -o ${.TARGET}"
+#	@${COMPILE.c} ${DFLAGS} -p ${.IMPSRC} -o ${.TARGET}.o
+# END FreeBSD-relayd
+	@echo "${COMPILE.c} ${PO_FLAG} ${.IMPSRC} -o ${.TARGET}"
+	@${COMPILE.c} ${DFLAGS} ${PO_FLAG} ${.IMPSRC} -o ${.TARGET}.o
 	@-mv $@.d $*.d
 	@${LD} -X -r ${.TARGET}.o -o ${.TARGET}
 	@rm -f ${.TARGET}.o
