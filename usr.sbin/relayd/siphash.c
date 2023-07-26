@@ -44,7 +44,15 @@
  */
 
 #include <sys/param.h>
+#ifdef __FreeBSD__
+/*
+ * The presence of this header breaks the build on FreeBSD 12.4.
+ */
+#if __FreeBSD_version >= 1300000
 #include <sys/systm.h>
+#endif /* __FreeBSD_version < 1300000 */
+#endif
+
 
 #ifdef __FreeBSD__
 #include "siphash.h"
