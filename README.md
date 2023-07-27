@@ -121,7 +121,7 @@ The latest tested LibreSSL version is 3.7.2.
 2. Publish the tag.
 
    ```sh
-   git push --tags
+   git push OSMAJOR.OSMINOR.LATEST_COMMIT_DATE-pPATCHLEVEL
    ```
 
 3. The release with the release archive will be created automatically by the
