@@ -29,6 +29,9 @@
 #include <event.h>
 */
 #include <fcntl.h>
+#if __FreeBSD_version >= 1500000
+#include <libpfctl.h>
+#endif /* __FreeBSD_version >= 1500000 */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -59,7 +62,11 @@ void
 pfe(struct privsep *ps, struct privsep_proc *p)
 {
 	int			s;
+#if __FreeBSD_version < 1500000
 	struct pf_status	status;
+#else /* __FreeBSD_version >= 1500000 */
+	struct pfctl_status*	pfs;
+#endif /* __FreeBSD_version >= 1500000 */
 
 	env = ps->ps_env;
 
@@ -71,10 +78,22 @@ pfe(struct privsep *ps, struct privsep_proc *p)
 			fatal("calloc");
 		env->sc_pf->dev = s;
 	}
+#if __FreeBSD_version < 1500000
 	if (ioctl(env->sc_pf->dev, DIOCGETSTATUS, &status) == -1)
 		fatal("%s: DIOCGETSTATUS", __func__);
 	if (!status.running)
 		fatalx("%s: pf is disabled", __func__);
+#else /* __FreeBSD_version >= 1500000 */
+	pfctl_free_status(pfs);
+	pfs = pfctl_get_status(env->sc_pf->dev);
+	if (pfs == NULL)
+		fatal("%s: pfctl_get_status", __func__);
+	if (!pfs->running) {
+		pfctl_free_status(pfs);
+		fatalx("%s: pf is disabled", __func__);
+	}
+	pfctl_free_status(pfs);
+#endif /* __FreeBSD_version >= 1500000 */
 	log_debug("%s: filter init done", __func__);
 
 	proc_run(ps, p, procs, nitems(procs), pfe_init, NULL);
