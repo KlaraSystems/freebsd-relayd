@@ -1,5 +1,10 @@
 # FreeBSD relayd
 
+## Dependencies
+
+- LibreSSL (3.7.2 or newer)
+- libpfctl (0.4 or newer)
+
 ## Building
 
 ```
@@ -8,10 +13,6 @@ make
 ```
 
 See `./configure -h` to learn how to modify the defaults such as the locations of libraries and header files.
-
-## Compatibility
-
-The latest tested LibreSSL version is 3.7.2.
 
 ## Style
 
