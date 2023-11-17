@@ -72,6 +72,9 @@ cat << EOF > "$makefile"
 LOCALBASE?=	${LOCALBASE:-/usr/local}
 PREFIX?=	${PREFIX:-/usr/local}
 
+# Use -isystem instead of -I here to look for the needed headers
+# in the source tree first.
+CFLAGS+=	-isystem \${LOCALBASE}/include
 CFLAGS+=	-DFREEBSD_RELAYD_PREFIX='"\${PREFIX}"'
 # Disable MD5 and SHA consistently across the code base. Those macros are
 # relevant for disabling parts of LibreSSL headers.
@@ -89,6 +92,8 @@ CFLAGS+=	-DSHA1_DIGEST_STRING_LENGTH=SHA_DIGEST_LENGTH
 # A tested workaround is to link against libcrypto.so, but that is not an
 # option if LibreSSL is not the default SSL implementation on the system.
 LDFLAGS+=	-pthread
+LDFLAGS+=	-L\${LOCALBASE}/lib
+LDFLAGS+=	-lpfctl
 
 # Set LIBCRT0 to make OpenBSD's bsd.prog.mk happy.
 LIBCRT0=	/usr/lib/crt1.o
