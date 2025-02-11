@@ -98,10 +98,14 @@ init_tables(struct relayd *env)
 		return;
 
 	/*
-	 * clear all tables, since some already existed
+	 * Clear disabled tables and tables belonging to disabled redirects.
+	 * Don't touch enabled tables since that could disrupt traffic.
 	 */
-	TAILQ_FOREACH(rdr, env->sc_rdrs, entry)
-		flush_table(env, rdr);
+	TAILQ_FOREACH(rdr, env->sc_rdrs, entry) {
+		if (rdr->conf.flags & F_DISABLE ||
+		    rdr->table->conf.flags & F_DISABLE)
+			flush_table(env, rdr);
+	}
 
 	return;
 
