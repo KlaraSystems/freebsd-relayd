@@ -102,6 +102,8 @@ init_tables(struct relayd *env)
 	 * Don't touch enabled tables since that could disrupt traffic.
 	 */
 	TAILQ_FOREACH(rdr, env->sc_rdrs, entry) {
+		if (rdr->conf.flags & F_DISABLE)
+			sync_ruleset(env, rdr, 0);
 		if (rdr->conf.flags & F_DISABLE ||
 		    rdr->table->conf.flags & F_DISABLE)
 			flush_table(env, rdr);
