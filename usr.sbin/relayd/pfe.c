@@ -291,7 +291,6 @@ pfe_dispatch_relay(int fd, struct privsep_proc *p, struct imsg *imsg)
 	struct relay		*rlay;
 	struct ctl_conn		*c;
 	struct rsession		 con, *s, *t;
-	u_int64_t		 config_gen;
 	int			 cid;
 	objid_t			 sid;
 
