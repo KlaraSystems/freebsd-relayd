@@ -21,6 +21,7 @@
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/procctl.h>
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -35,6 +36,10 @@
 #include <imsg.h>
 
 #include "relayd.h"
+
+#define STDIN_BUFFER_SIZE 4000
+
+#define log_debug(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 
 void	 proc_exec(struct privsep *, struct privsep_proc *, unsigned int, int,
 	    char **);
@@ -112,11 +117,23 @@ proc_exec(struct privsep *ps, struct privsep_proc *procs, unsigned int nproc,
 			fd = ps->ps_pipes[p->p_id][i].pp_pipes[PROC_PARENT][0];
 			ps->ps_pipes[p->p_id][i].pp_pipes[PROC_PARENT][0] = -1;
 
+			if (p->p_id == PROC_PFE)
+				continue;
+
+			// claude: make sure children exists if the parent exists
+
 			switch (fork()) {
 			case -1:
 				fatal("%s: fork", __func__);
 				break;
 			case 0:
+				/* Set up child to exit if parent dies */
+				{
+					int sig = SIGTERM;
+					if (procctl(P_PID, 0, PROC_PDEATHSIG_CTL, &sig) == -1)
+						fatal("procctl PROC_PDEATHSIG_CTL");
+				}
+				
 				/* Prepare parent socket. */
 				if (fd != PROC_PARENT_SOCK_FILENO) {
 					if (dup2(fd, PROC_PARENT_SOCK_FILENO)
@@ -211,6 +228,54 @@ proc_init(struct privsep *ps, struct privsep_proc *procs, unsigned int nproc,
 				    SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
 				    PF_UNSPEC, fds) == -1)
 					fatal("%s: socketpair", __func__);
+
+				/*
+				int myfds[2];
+				if (socketpair(AF_UNIX,
+				    SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
+				    PF_UNSPEC, myfds) == -1)
+					fatal("%s: socketpair", __func__);
+
+				struct imsgbuf stdin_ibuf;
+				imsg_init(&stdin_ibuf, myfds[0]);
+
+				char stdin_buffer[STDIN_BUFFER_SIZE];
+				ssize_t bytes_read;
+				ssize_t total_bytes = 0;
+				
+				while ((bytes_read = read(STDIN_FILENO, stdin_buffer + total_bytes, sizeof(stdin_buffer) - total_bytes)) > 0) {
+					total_bytes += bytes_read;
+					if (total_bytes >= sizeof(stdin_buffer))
+						break;
+				}
+				*/
+				
+				/*
+				if (total_bytes > 0) {
+					write(myfds[0], stdin_buffer, total_bytes);
+				}
+				*/
+
+				// if (total_bytes >= 4 && dst == PROC_PFE) {
+				/*
+				if (total_bytes >= 4) {
+					printf("send!!!\n");
+					uint32_t first_four_bytes;
+					memcpy(&first_four_bytes, stdin_buffer, 4);
+					printf("bytes are %d\n", first_four_bytes);
+					imsg_compose(&stdin_ibuf, 0, 0, 0, -1, NULL, 0);
+					imsg_flush(&stdin_ibuf);
+				}
+
+				pa->pp_pipes[dst][proc] = myfds[1];
+				*/
+
+				/*
+				if (dst == PROC_PFE)
+					pa->pp_pipes[dst][proc] = myfds[1];
+				else
+					pa->pp_pipes[dst][proc] = fds[0];
+				*/
 
 				pa->pp_pipes[dst][proc] = fds[0];
 				pb->pp_pipes[PROC_PARENT][0] = fds[1];
@@ -388,6 +453,7 @@ proc_open(struct privsep *ps, int src, int dst)
 	int			 fds[2];
 	unsigned int		 i, j;
 
+	printf("proc_open start!\n");
 	/* Exchange pipes between process. */
 	for (i = 0; i < ps->ps_instances[src]; i++) {
 		for (j = 0; j < ps->ps_instances[dst]; j++) {
@@ -431,6 +497,7 @@ proc_open(struct privsep *ps, int src, int dst)
 				fatal("%s: imsg_flush", __func__);
 		}
 	}
+	printf("proc_open done!\n");
 }
 
 void
@@ -639,6 +706,7 @@ proc_dispatch(int fd, short event, void *arg)
 		 */
 		if ((p->p_cb)(fd, p, &imsg) == 0) {
 			/* Message was handled by the callback, continue */
+			printf("callback from %s\n", p->p_title);
 			imsg_free(&imsg);
 			continue;
 		}

@@ -296,6 +296,101 @@ main(int argc, char *argv[])
 	init_routes(env);
 #endif
 
+
+
+	int myfds[2];
+	if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, PF_UNSPEC, myfds) == -1)
+		fatal("%s: socketpair", __func__);
+
+	struct imsgbuf stdin_ibuf;
+	imsg_init(&stdin_ibuf, myfds[0]);
+
+	char stdin_buffer[4000];
+	size_t bytes_read;
+	ssize_t total_bytes = 0;
+
+	while ((bytes_read = read(STDIN_FILENO, stdin_buffer + total_bytes, sizeof(stdin_buffer) - total_bytes)) > 0) {
+		total_bytes += bytes_read;
+		if (total_bytes >= sizeof(stdin_buffer))
+			break;
+	}
+
+	int pfe_fd = ps->ps_pipes[PROC_PARENT][0].pp_pipes[PROC_PFE][0];
+	printf("pfe's port is %d\n", pfe_fd);
+	if (dup2(myfds[1], pfe_fd) == -1)
+		fatal("dup2");
+
+
+	/*
+	if (total_bytes >= 4) {
+		printf("send!!!\n");
+		uint32_t first_four_bytes;
+		memcpy(&first_four_bytes, stdin_buffer, 4);
+		printf("bytes are %d\n", first_four_bytes);
+		imsg_compose(&stdin_ibuf, first_four_bytes, 0, 0, -1, NULL, 0);
+		imsg_flush(&stdin_ibuf);
+	}
+	*/
+
+	/*
+	 * claude: Fuzzing harness implementation
+	 * Generate imsg traffic based on stdin data using the specified rules
+	 */
+	size_t buffer_offset = 0;
+	
+	for (int msg_count = 0; msg_count < 5 && buffer_offset < total_bytes; msg_count++) {
+		if (buffer_offset >= total_bytes) break;
+		
+		/* Get message type from first byte, map to valid types */
+		uint8_t type_selector = stdin_buffer[buffer_offset++];
+		uint32_t msg_type;
+		
+		/* Map to one of the 4 valid types: 26, 25, 23, 54 */
+		switch (type_selector % 4) {
+			case 0: msg_type = 26; break;
+			case 1: msg_type = 25; break;
+			case 2: msg_type = 23; break;
+			case 3: msg_type = 55; break;
+		}
+		
+		if (msg_type == 26) {
+			/* Type 26: use next 4 bytes as payload */
+			if (buffer_offset + 4 <= total_bytes) {
+				uint32_t payload;
+				memcpy(&payload, stdin_buffer + buffer_offset, 4);
+				buffer_offset += 4;
+				
+				printf("Sending imsg type %u with 4-byte payload: %u\n", msg_type, payload);
+				imsg_compose(&stdin_ibuf, msg_type, 0, 0, -1, &payload, sizeof(payload));
+			}
+		} else {
+			/* Types 25, 23, 55: use second byte for length, then data */
+			if (buffer_offset < total_bytes) {
+				uint8_t payload_len = stdin_buffer[buffer_offset++];
+				if (payload_len > 127) {
+					printf("========= how come bigger than 127?\n");
+					payload_len = 127; /* Limit to max length */
+				}
+				
+				/* Ensure we don't read beyond buffer */
+				if (buffer_offset + payload_len > total_bytes) {
+					payload_len = total_bytes - buffer_offset;
+				}
+				
+				if (payload_len > 0) {
+					printf("Sending imsg type %u with %u-byte payload\n", msg_type, payload_len);
+					imsg_compose(&stdin_ibuf, msg_type, 0, 0, -1, 
+						    stdin_buffer + buffer_offset, payload_len);
+					buffer_offset += payload_len;
+				}
+			}
+		}
+		
+		/* Flush the message */
+		imsg_flush(&stdin_ibuf);
+	}
+
+
 	event_dispatch();
 
 	parent_shutdown(env);
@@ -438,6 +533,18 @@ parent_dispatch_pfe(int fd, struct privsep_proc *p, struct imsg *imsg)
 #endif
 	u_int			 v;
 	char			*str = NULL;
+	static int counter = 0;
+	counter++;
+	if (counter == 5)
+		exit(0);
+	
+
+	printf("pfe???\n");
+	printf("sizeof reset is %lu\n", sizeof(v));
+	printf("reset value is %lu\n", IMSG_CTL_RESET);
+	printf("reload value is %lu\n", IMSG_CTL_RELOAD);
+	printf("shutdown value is %lu\n", IMSG_CTL_SHUTDOWN);
+	printf("done value is %lu\n", IMSG_CFG_DONE);
 
 	switch (imsg->hdr.type) {
 #ifndef __FreeBSD__
@@ -453,28 +560,35 @@ parent_dispatch_pfe(int fd, struct privsep_proc *p, struct imsg *imsg)
 		break;
 #endif
 	case IMSG_CTL_RESET:
+		printf("ctl reset!!!\n");
 		IMSG_SIZE_CHECK(imsg, &v);
 		memcpy(&v, imsg->data, sizeof(v));
 		parent_reload(env, v, NULL);
 		break;
 	case IMSG_CTL_RELOAD:
+		printf("ctl reload!!!\n");
 		if (IMSG_DATA_SIZE(imsg) > 0)
 			str = get_string(imsg->data, IMSG_DATA_SIZE(imsg));
 		parent_reload(env, CONFIG_RELOAD, str);
 		free(str);
 		break;
 	case IMSG_CTL_SHUTDOWN:
+		printf("ctl shutdown!!!\n");
 		parent_shutdown(env);
 		break;
 	case IMSG_CFG_DONE:
+		printf("ctl CFG_DONE!!!\n");
 		parent_configure_done(env);
 		break;
 #ifndef __FreeBSD__
 	case IMSG_AGENTXSOCK:
+		printf("ctl AGENTXSOCK!!!\n");
 		agentx_setsock(env, p->p_id);
 		break;
 #endif
 	default:
+		printf("none!!!\n");
+		printf("type is %d\n!!!\n", imsg->hdr.type);
 		return (-1);
 	}
 
